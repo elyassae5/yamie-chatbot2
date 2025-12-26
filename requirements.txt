@@ -1,0 +1,10 @@
+python-dotenv
+openai
+pinecone-client
+
+llama-index
+llama-index-vector-stores-pinecone
+llama-index-embeddings-openai
+llama-index-readers-file
+
+tqdm
