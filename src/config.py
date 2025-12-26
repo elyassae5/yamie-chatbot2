@@ -24,6 +24,16 @@ class Config:
     # Chunking
     chunk_size: int = 1024
     chunk_overlap: int = 250
+
+    # Query/Retrieval Settings
+    query_top_k: int = 5                    # Number of chunks to retrieve
+    query_similarity_threshold: float = 0.0  # Minimum similarity (0.0 = no threshold)
+    
+    # LLM Settings
+    llm_model: str = "gpt-4o"               # OpenAI model for generation
+    llm_temperature: float = 0.1            # Low = more factual, high = more creative
+    llm_max_tokens: int = 500               # Max response length
+
      
     def validate(self):
         errors = []
@@ -48,6 +58,8 @@ class Config:
         print(f"  Chunk overlap: {self.chunk_overlap}")
         print(f"  Pinecone index: {self.pinecone_index_name}")
         print(f"  Namespace: {self.pinecone_namespace}")
+        print(f"  Query top-k: {self.query_top_k}")
+        print(f"  LLM model: {self.llm_model}")
 
 
 def get_config() -> Config:
