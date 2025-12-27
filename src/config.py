@@ -19,20 +19,20 @@ class Config:
     # Pinecone
     pinecone_api_key: str = os.getenv("PINECONE_API_KEY", "")
     pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "yamie-test")
-    pinecone_namespace: str = "documents"
+    pinecone_namespace: str = "test-data"
 
     # Chunking
-    chunk_size: int = 1024
-    chunk_overlap: int = 250
+    chunk_size: int = 256
+    chunk_overlap: int = 64
 
     # Query/Retrieval Settings
-    query_top_k: int = 5                    # Number of chunks to retrieve
+    query_top_k: int = 10                   # Number of chunks to retrieve
     query_similarity_threshold: float = 0.0  # Minimum similarity (0.0 = no threshold)
     
     # LLM Settings
     llm_model: str = "gpt-4o"               # OpenAI model for generation
-    llm_temperature: float = 0.1            # Low = more factual, high = more creative
-    llm_max_tokens: int = 500               # Max response length
+    llm_temperature: float = 0.2            # Low = more factual, high = more creative
+    llm_max_tokens: int = 600               # Max response length
 
      
     def validate(self):

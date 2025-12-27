@@ -5,7 +5,7 @@ Loads documents, chunks them, embeds, and stores vectors.
 
 from datetime import datetime
 from typing import Optional
-
+ 
 from llama_index.core import VectorStoreIndex
 from llama_index.embeddings.openai import OpenAIEmbedding
 

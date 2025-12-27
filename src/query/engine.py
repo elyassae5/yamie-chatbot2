@@ -48,7 +48,7 @@ class QueryEngine:
         Answer a question using the RAG pipeline.
         
         This is the main entry point for querying the system.
-        
+         
         Args:
             question: User's question (in Dutch or English)
             top_k: Number of chunks to retrieve (default from config)
@@ -91,7 +91,6 @@ class QueryEngine:
                 answer="Ik heb die informatie niet in de bedrijfsdocumenten. (I don't have that information in the company documents.)",
                 sources=[],
                 has_answer=False,
-                confidence="low",
                 response_time_seconds=0.0,
             )
         
@@ -102,7 +101,7 @@ class QueryEngine:
         )
         
         print("="*80)
-        print(f"✅ Query completed - Confidence: {response.confidence}")
+        print(f"✅ Query completed ")
         print("="*80 + "\n")
         
         return response

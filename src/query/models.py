@@ -31,7 +31,7 @@ class QueryRequest:
     question: str                      # User's question
     top_k: int = 5                     # Number of chunks to retrieve
     category_filter: Optional[str] = None  # Optional category filter (e.g., "menu")
-    
+     
     def validate(self) -> None:
         """Validate the request."""
         if not self.question or not self.question.strip():
@@ -54,7 +54,6 @@ class QueryResponse:
     answer: str                        # Generated answer
     sources: List[RetrievedChunk]      # Chunks used to generate answer
     has_answer: bool                   # True if answer found, False if "I don't know"
-    confidence: str                    # "high", "medium", "low"
     response_time_seconds: float       # How long it took to generate
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     
@@ -72,7 +71,6 @@ class QueryResponse:
             f"Answer: {self.answer}\n"
             f"{'-'*80}\n"
             f"Sources: {sources_str}\n"
-            f"Confidence: {self.confidence}\n"
             f"Response Time: {self.response_time_seconds:.2f}s\n"
             f"{'='*80}\n"
         )

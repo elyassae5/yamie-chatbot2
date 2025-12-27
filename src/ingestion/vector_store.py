@@ -33,8 +33,15 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
     index = pc.Index(index_name)
 
     if clear_namespace:
-        print(f"Clearing namespace '{config.pinecone_namespace}'")
-        index.delete(delete_all=True, namespace=config.pinecone_namespace)
+        try:
+            print(f"Clearing namespace '{config.pinecone_namespace}'")
+            index.delete(delete_all=True, namespace=config.pinecone_namespace)
+        except Exception as e:
+            if "not found" in str(e).lower():
+                print(f"Namespace '{config.pinecone_namespace}' doesn't exist yet - will create it")
+            else:
+                raise  # Re-raise if it's a different error
+            
 
     vector_store = PineconeVectorStore(
         pinecone_index=index,

@@ -37,12 +37,8 @@ class Responder:
             QueryResponse with answer, sources, and metadata
         """
         start_time = datetime.utcnow()
-        
-        # Calculate confidence before attempting to answer
-        confidence = PromptBuilder.calculate_confidence(chunks)
-        
+                
         print(f"\n💬 Generating answer for: '{question}'")
-        print(f"   Confidence: {confidence}")
         print(f"   Retrieved chunks: {len(chunks)}")
         
         # Build prompts
@@ -76,7 +72,6 @@ class Responder:
                 answer=answer,
                 sources=chunks,
                 has_answer=has_answer,
-                confidence=confidence,
                 response_time_seconds=response_time,
             )
             
@@ -163,6 +158,5 @@ class Responder:
             answer=f"Sorry, I encountered an error: {error_message}",
             sources=chunks,
             has_answer=False,
-            confidence="low",
             response_time_seconds=response_time,
         )
