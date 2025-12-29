@@ -67,4 +67,4 @@ python scripts/test_query.py
 
 ## License
 
-Internal use only - Yamie PastaBar
+Internal use only - Yamie Pastabar

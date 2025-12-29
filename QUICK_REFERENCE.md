@@ -21,10 +21,10 @@ python scripts/test_query.py
 python scripts/test_suite.py
 ```
 
-### 3️⃣ Demo for Uncle
+### 3️⃣ Demo
 ```bash
 python scripts/demo.py
-# Choose option 1 (Uncle Demo)
+# Choose option 1
 ```
 
 ---
@@ -53,7 +53,7 @@ yamie-chatbot-main/
 │   ├── run_ingestion.py        ← Ingest PDFs → Pinecone
 │   ├── test_query.py           ← Test single question
 │   ├── test_suite.py           ← Test 20 questions
-│   └── demo.py                 ← Demo for uncle
+│   └── demo.py                 ← Demo
 │
 └── .env                        ← API KEYS HERE (create from .env.example)
     OPENAI_API_KEY=sk-...
