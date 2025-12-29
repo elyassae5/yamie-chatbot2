@@ -8,3 +8,4 @@ llama-index-embeddings-openai
 llama-index-readers-file
 
 tqdm
+docx2txt

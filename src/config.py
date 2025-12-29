@@ -8,7 +8,7 @@ load_dotenv()
 @dataclass
 class Config:
     data_dir: str = "./data"
-    supported_extensions: list[str] = field(default_factory=lambda: [".pdf"])
+    supported_extensions: list[str] = field(default_factory=lambda: [".docx"])
 
     # OpenAI
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -22,12 +22,12 @@ class Config:
     pinecone_namespace: str = "test-data"
 
     # Chunking
-    chunk_size: int = 256
-    chunk_overlap: int = 64
+    chunk_size: int = 500
+    chunk_overlap: int = 150
 
     # Query/Retrieval Settings
-    query_top_k: int = 10                   # Number of chunks to retrieve
-    query_similarity_threshold: float = 0.0  # Minimum similarity (0.0 = no threshold)
+    query_top_k: int = 7                  # Number of chunks to retrieve
+    query_similarity_threshold: float = 0.0
     
     # LLM Settings
     llm_model: str = "gpt-4o"               # OpenAI model for generation
