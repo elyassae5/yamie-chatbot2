@@ -7,11 +7,13 @@ comprehensive logging and monitoring.
 import logging
 from typing import Optional
 from datetime import datetime
+import openai
 
 from src.config import Config, get_config
 from src.query.models import QueryRequest, QueryResponse
 from src.query.retriever import Retriever
 from src.query.responder import Responder
+from src.memory.conversation_memory import ConversationMemory
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,9 @@ class QueryEngine:
             logger.info("Initializing responder...")
             self.responder = Responder(config=self.config)
             
+            logger.info("Initializing conversation memory...")
+            self.memory = ConversationMemory(config=self.config)
+            
             logger.info("="*80)
             logger.info("✓ QUERY ENGINE READY")
             logger.info("="*80)
@@ -62,6 +67,7 @@ class QueryEngine:
     def query(
         self,
         question: str,
+        user_id: str = "default_user",
         top_k: Optional[int] = None,
         category_filter: Optional[str] = None,
     ) -> QueryResponse:
@@ -129,6 +135,16 @@ class QueryEngine:
         if category_filter:
             logger.info(f"Category filter: {category_filter}")
         
+        # Transform question using conversation history (if available)
+        original_question = question  # Keep original for display
+        search_question = self._transform_question_with_history(question, user_id)
+        
+        if search_question != original_question:
+            logger.info(f"Question transformed for search: '{search_question}'")
+        
+        # Update request with transformed question for retrieval
+        request.question = search_question
+        
         # Step 1: Retrieve relevant chunks
         logger.info("\n--- STAGE 1/2: RETRIEVAL ---")
         
@@ -153,16 +169,25 @@ class QueryEngine:
         
         try:
             response = self.responder.generate_answer(
-                question=question,
+                question=original_question,  # Use original question for user-facing answer
                 chunks=chunks,
+                conversation_history=self.memory.get_context_string(user_id),
             )
         except Exception as e:
             logger.error(f"Answer generation failed: {e}", exc_info=True)
             return self._create_error_response(
-                question=question,
+                question=original_question,
                 error_message="Failed to generate answer. Please try again.",
                 query_start=query_start
             )
+        
+        # Save conversation turn to memory
+        if self.memory and response.has_answer:
+            try:
+                self.memory.add_turn(user_id, original_question, response.answer)
+                logger.debug(f"Saved conversation turn to memory for user {user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save to memory: {e}")
         
         # Calculate total query time
         total_time = (datetime.utcnow() - query_start).total_seconds()
@@ -173,6 +198,81 @@ class QueryEngine:
         logger.info("="*80)
         
         return response
+    
+    def _transform_question_with_history(self, question: str, user_id: str) -> str:
+        """
+        Transform vague questions into standalone questions using conversation history.
+        
+        This solves the "pronoun problem" where users say things like:
+        - "What about vacation days?" (after asking about sick days)
+        - "How much is it?" (after asking about a specific item)
+        - "Tell me more about that" (referring to previous topic)
+        
+        Args:
+            question: The user's current question
+            user_id: User identifier to retrieve conversation history
+            
+        Returns:
+            Transformed standalone question that can be searched independently
+        """
+        # Check if memory is available
+        if not self.memory or not self.memory.health_check():
+            logger.debug("Memory not available, skipping question transformation")
+            return question
+        
+        # Get conversation history
+        conversation = self.memory.get_conversation(user_id)
+        
+        # If no history, return question as-is
+        if not conversation:
+            logger.debug("No conversation history, using question as-is")
+            return question
+        
+        # Build history context (last 5 turns max for efficiency)
+        recent_history = conversation[-5:] if len(conversation) > 5 else conversation
+        history_text = "\n".join([
+            f"User: {turn['question']}\nAssistant: {turn['answer']}"
+            for turn in recent_history
+        ])
+        
+        # Create transformation prompt
+        prompt = f"""Given this recent conversation:
+
+{history_text}
+
+The user now asks: "{question}"
+
+If this question refers to something from the conversation history, rewrite it as a standalone question that can be understood without the history.
+
+If the question is already standalone and clear, return it exactly as-is.
+
+Standalone question:"""
+        
+        try:
+            # Use GPT-4o-mini for fast, cheap transformation
+            logger.debug("Transforming question with conversation history...")
+            
+            response = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=100,
+            )
+            
+            transformed_question = response.choices[0].message.content.strip()
+            
+            # Remove quotes if the model added them
+            if transformed_question.startswith('"') and transformed_question.endswith('"'):
+                transformed_question = transformed_question[1:-1]
+            if transformed_question.startswith("'") and transformed_question.endswith("'"):
+                transformed_question = transformed_question[1:-1]
+            
+            logger.debug(f"Transformed: '{question}' → '{transformed_question}'")
+            return transformed_question
+            
+        except Exception as e:
+            logger.warning(f"Question transformation failed: {e}. Using original question.")
+            return question
     
     def _sanitize_question(self, question: str) -> str:
         """

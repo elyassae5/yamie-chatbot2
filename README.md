@@ -1,302 +1,450 @@
 # YamieBot - Internal RAG Assistant
 
-Production-grade RAG chatbot for Smokey Joe's franchise staff in the Netherlands.
+AI-powered chatbot for Yamie PastaBar franchise staff in the Netherlands. Get instant answers about company policies, procedures, and operations from internal documents.
 
 ## What It Does
 
-Staff ask questions about franchise operations, training protocols, procedures, and company policies. YamieBot answers instantly using the internal franchise manual - no waiting for managers or trainers.
+Staff ask questions about franchise operations via WhatsApp (future) or command-line (current). YamieBot searches internal documents and provides accurate, cited answers instantly.
 
-**Example**:
-- Q: "Wie is Daoud en wat doet hij?"
-- A: "Daoud is verantwoordelijk voor managementondersteuning en is betrokken bij personeel of managementkwesties. 📄 [smokey_joes_interne_franchisehandleiding.docx]"
+**Example:**
+```
+Q: "Wie is Daoud en wat doet hij?"
+A: "Daoud is verantwoordelijk voor managementondersteuning en wordt ingeschakeld 
+    bij personeels- of managementproblemen. 📄 [smokey_joes_interne_franchisehandleiding.docx]"
+```
+
+**Features:**
+- ✅ Conversation memory (remembers context for 30 minutes)
+- ✅ Multi-language support (Dutch/English)
+- ✅ Source citations (always shows where info came from)
+- ✅ Fast responses (~1-2 seconds)
+- ✅ No hallucinations (strict document grounding)
+
+---
 
 ## Current Status
 
-**Phase**: Core system complete ✅ - Ready for feature additions  
-**Progress**: ~50% complete (5/10 phases)  
-**Timeline**: 3-4 weeks to WhatsApp rollout
+**Phase**: Core complete + Conversation memory ✅  
+**Progress**: ~65% complete  
+**Next**: WhatsApp integration
 
 ### Completed ✅
 - ✅ Document ingestion (DOCX support)
-- ✅ Vector retrieval system (Pinecone)
-- ✅ Answer generation (GPT-4o)
-- ✅ Production-ready logging
-- ✅ Code refactored and optimized
-- ✅ Real franchise data ingested
+- ✅ Vector search (Pinecone)
+- ✅ Answer generation (GPT-4o-mini)
+- ✅ Conversation memory (Redis Cloud)
+- ✅ Context-aware follow-up questions
+- ✅ Production logging
+- ✅ Optimized for speed & cost
 
-### Next Steps 🎯
-1. Add query logging (database tracking)
-2. Implement Redis caching (40-60% cost reduction)
-3. Add conversation memory
-4. Build WhatsApp integration
-5. Deploy to production
+### In Progress 🚧
+- ⏳ Query logging to database
+- ⏳ WhatsApp integration (Twilio)
+- ⏳ Redis caching for speed
+- ⏳ Production deployment
+
+---
 
 ## Tech Stack
 
 **Core RAG:**
 - **Embeddings**: OpenAI text-embedding-3-large (3072 dims)
-- **Vector DB**: Pinecone Serverless (cosine similarity)
-- **LLM**: GPT-4o (temp: 0.2)
-- **Chunking**: 500 tokens, 150 overlap
-
-**Infrastructure:**
-- **Language**: Python 3.10+
-- **Framework**: LlamaIndex (query) + Custom (ingestion)
-- **Logging**: Structured logging with file rotation
-- **Config**: Dataclasses + dotenv
+- **Vector DB**: Pinecone Serverless
+- **LLM**: GPT-4o-mini (fast + cheap)
+- **Memory**: Redis Cloud (conversation history)
+- **Chunking**: 600 chars, 200 overlap
 
 **Configuration:**
-- Chunk size: 500 tokens (optimized for franchise manual)
-- Chunk overlap: 150 tokens
-- Top-k retrieval: 7 chunks
-- Temperature: 0.2 (factual responses)
-- Max tokens: 600
+- Top-k retrieval: 6 chunks
+- Temperature: 0.1 (factual)
+- Max tokens: 400
+- Response time: ~1.3 seconds
+- Conversation memory: 10 turns, 30min TTL
+
+---
 
 ## Quick Start
 
 ### 1. Install Dependencies
 ```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install packages
 pip install -r requirements.txt
 ```
 
 ### 2. Set Up Environment
+Create `.env` file with:
 ```bash
-cp .env.example .env
-# Add your API keys to .env:
-# - OPENAI_API_KEY=your_key_here
-# - PINECONE_API_KEY=your_key_here
-# - PINECONE_INDEX_NAME=yamie-test
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Pinecone
+PINECONE_API_KEY=pcsk_...
+PINECONE_INDEX_NAME=yamie-test
+
+# Redis Cloud (conversation memory)
+REDIS_HOST=redis-xxxxx.ec2.cloud.redislabs.com
+REDIS_PORT=10098
+REDIS_PASSWORD=your_redis_password
 ```
 
 ### 3. Add Documents
 ```bash
-# Place your DOCX/PDF files in the data/ folder
+# Place DOCX files in data/ folder
 cp your_document.docx data/
 ```
 
 ### 4. Ingest Documents
 ```bash
-python scripts/run_ingestion.py
-# Logs saved to: logs/yamiebot_YYYYMMDD_HHMMSS.log
+python scripts/ingest.py
 ```
 
-### 5. Test the System
+### 5. Test the Bot
 ```bash
+# Interactive testing (recommended)
 python scripts/test_query.py
 # Choose option 2 for interactive mode
-# Type 'debug' to see retrieved chunks
+# Type 'reset' to clear conversation memory
+# Type 'quit' to exit
 ```
 
+---
+
 ## Project Structure
+
 ```
 yamie-chatbot/
-├── data/                           # Document storage
+├── data/                           # Documents to ingest
 │   └── *.docx
-├── logs/                           # Application logs (auto-generated)
-│   └── yamiebot_YYYYMMDD_HHMMSS.log
+├── logs/                           # Application logs
 ├── src/
 │   ├── config.py                   # Central configuration
 │   ├── logging_config.py           # Logging setup
 │   ├── ingestion/                  # Document processing
-│   │   ├── loader.py              # DOCX/PDF loading
-│   │   ├── chunker.py             # Text chunking
-│   │   ├── vector_store.py        # Pinecone integration
-│   │   └── pipeline.py            # Ingestion orchestrator
-│   └── query/                      # RAG query system
-│       ├── models.py              # Data models
-│       ├── prompts.py             # LLM prompts
-│       ├── retriever.py           # Vector search
-│       ├── responder.py           # LLM generation
-│       └── engine.py              # Query orchestrator
+│   │   ├── document_processor.py  # DOCX processing
+│   │   └── vector_store.py        # Pinecone integration
+│   ├── query/                      # RAG query system
+│   │   ├── engine.py              # Main orchestrator + memory
+│   │   ├── retriever.py           # Vector search
+│   │   ├── responder.py           # Answer generation
+│   │   ├── prompts.py             # Prompt construction
+│   │   ├── system_prompt.py       # Bot behavior (EDIT THIS!)
+│   │   └── models.py              # Data models
+│   └── memory/                     # Conversation memory
+│       └── conversation_memory.py # Redis integration
 ├── scripts/
-│   ├── run_ingestion.py           # Ingest documents
+│   ├── ingest.py                  # Ingest documents
 │   ├── test_query.py              # Interactive testing
-│   ├── test_suite.py              # Batch testing
+│   ├── inspect_redis.py           # View conversations
 │   └── system_status.py           # Health check
-├── .env.example                    # Environment template
-├── .gitignore                      # Git ignore rules
-├── requirements.txt                # Python dependencies
+├── .env                            # API keys (create this!)
+├── requirements.txt                # Dependencies
 └── README.md                       # This file
 ```
 
+---
+
 ## Usage
+
+### Testing (Interactive Mode)
+```bash
+python scripts/test_query.py
+
+# Commands available:
+# - Type your question normally
+# - Type 'reset' to clear conversation memory
+# - Type 'quit' to exit
+```
+
+**Example conversation:**
+```
+Your question: Wie is Daoud?
+Bot: Daoud is verantwoordelijk voor managementondersteuning...
+
+Your question: Wat zijn zijn taken?
+Bot: [Understands "zijn" refers to Daoud from context]
+
+Your question: reset
+Bot: [Conversation memory cleared]
+```
 
 ### Ingestion (When Documents Change)
 ```bash
-# Ingest new documents
-python scripts/run_ingestion.py
+# Re-ingest all documents
+python scripts/ingest.py
 
-# View system health
+# Check system health
 python scripts/system_status.py
-
-# Run with debug logging
-# Edit scripts/run_ingestion.py: level="DEBUG"
 ```
 
-### Querying (Testing)
+### Redis/Memory Management
 ```bash
-# Interactive mode (recommended)
-python scripts/test_query.py
-# Choose option 2, ask questions, type 'quit' to exit
+# View stored conversations
+python scripts/inspect_redis.py
 
-# Batch testing
-python scripts/test_suite.py
-# Note: Update TEST_QUESTIONS in the script first
-
-# Single query test
-python scripts/test_query.py
-# Choose option 1 for preset question
+# Clear all conversations
+python scripts/inspect_redis.py
+# Type: yes (when prompted)
 ```
 
-### Logging
-```bash
-# Logs are automatically saved to logs/ directory
-# View latest log:
-ls -lt logs/ | head -n 1
-
-# Change log level:
-# Edit scripts/run_ingestion.py or scripts/test_query.py
-# Set: level="DEBUG"  (verbose) or level="INFO" (normal)
-```
+---
 
 ## Configuration
 
-Edit `src/config.py` to tune the system:
+Edit `src/config.py` to tune performance:
+
 ```python
 # Chunking (affects retrieval quality)
-chunk_size: int = 500           # Tokens per chunk
-chunk_overlap: int = 150        # Overlap between chunks
+chunk_size: int = 600           # Characters per chunk
+chunk_overlap: int = 200        # Overlap between chunks
 
 # Retrieval (affects answer quality)
-query_top_k: int = 7            # Chunks to retrieve
-query_similarity_threshold: float = 0.0  # Min similarity
+query_top_k: int = 6            # Number of chunks to retrieve
 
-# LLM (affects answer generation)
-llm_model: str = "gpt-4o"       # OpenAI model
-llm_temperature: float = 0.2    # 0=factual, 1=creative
-llm_max_tokens: int = 600       # Max response length
+# LLM (affects response quality)
+llm_model: str = "gpt-4o-mini"  # Fast + cheap model
+llm_temperature: float = 0.1    # Low = factual
+llm_max_tokens: int = 400       # Response length
+
+# Memory (affects conversation context)
+max_conversation_turns: int = 10        # Turns to store
+conversation_ttl_seconds: int = 1800    # 30 minutes
 ```
 
-## Roadmap
+### System Prompt (Bot Behavior)
 
-### Phase 1-2: Foundation ✅ (Weeks 1-4)
-- [x] Project setup
-- [x] Document ingestion (DOCX/PDF)
-- [x] Vector storage (Pinecone)
-- [x] Basic RAG query system
-
-### Phase 3: Production Refactor ✅ (Week 5)
-- [x] Real franchise data ingestion
-- [x] Production-ready logging
-- [x] Code refactoring (all modules)
-- [x] Error handling improvements
-
-### Phase 4: Essential Features ⏳ (Weeks 6-7)
-- [ ] Query logging (PostgreSQL/Supabase)
-- [ ] Redis caching (cost + speed)
-- [ ] Input sanitization
-- [ ] Conversation memory
-
-### Phase 5: Integration (Weeks 8-9)
-- [ ] WhatsApp integration (Twilio)
-- [ ] User authentication (phone whitelist)
-- [ ] Rate limiting (prevent abuse)
-
-### Phase 6: Deployment (Week 10)
-- [ ] Production deployment (Railway/AWS)
-- [ ] Monitoring (Sentry)
-- [ ] Backup strategy
-
-### Phase 7: Launch (Week 11+)
-- [ ] Pilot testing (5-10 staff)
-- [ ] Full rollout (all restaurants)
-- [ ] Ongoing maintenance
-
-## Cost Estimate
-
-**Development (Current)**: ~$10/month
-- OpenAI API: ~$5/month (testing)
-- Pinecone: Free tier
-
-**Production (Estimated)**: ~$120-140/month
-- OpenAI API: $25-35/month (500 queries/day)
-- Pinecone: $50/month (serverless)
-- Database: $10/month (PostgreSQL)
-- Redis: $5/month (caching)
-- Hosting: $15/month (Railway/AWS)
-- Twilio: $15/month (WhatsApp)
-
-**Cost Optimizations Planned:**
-- Redis caching → 40-60% reduction
-- Smaller embedding model → 6.5x cheaper
-- Aggressive caching → Additional 20% reduction
-
-## Development
-
-### Testing
-```bash
-# Health check
-python scripts/system_status.py
-
-# Interactive testing
-python scripts/test_query.py
-
-# Batch testing (update questions first)
-python scripts/test_suite.py
-
-# Test logging system
-python -m src.logging_config
+Edit `src/query/system_prompt.py` to change how the bot responds:
+```python
+SYSTEM_PROMPT_SHORT = """Your instructions here..."""
 ```
 
-### Debugging
-```bash
-# Enable debug logs
-# Edit script file, change: level="DEBUG"
+**This file controls:**
+- How the bot interprets questions
+- When it says "I don't know"
+- How it handles follow-up questions
+- Citation behavior
 
-# View retrieval chunks
-# In test_query.py interactive mode, type: debug
+---
 
-# Check Pinecone stats
-python scripts/system_status.py
+## Architecture
+
+### How It Works
+
 ```
+User asks question
+    ↓
+[1] Load conversation history (Redis)
+    ↓
+[2] Transform vague questions into clear queries
+    Example: "What about that?" → "What about vacation days?"
+    ↓
+[3] Search document chunks (Pinecone)
+    Retrieves top 6 most relevant chunks
+    ↓
+[4] Generate answer with context (GPT-4o-mini)
+    Uses: conversation history + retrieved chunks + original question
+    ↓
+[5] Save Q&A to memory (Redis)
+    Auto-expires after 30 minutes
+    ↓
+Return answer with source citations
+```
+
+### Conversation Memory
+
+**How it works:**
+- Each user gets unique conversation (by `user_id`)
+- Stores last 10 Q&A pairs
+- Auto-deletes after 30 minutes of inactivity
+- Used for context-aware follow-ups
+
+**Example:**
+```
+Turn 1: "Wie is Daoud?" → Bot explains
+Turn 2: "Wat zijn zijn taken?" → Bot knows "zijn" = Daoud's
+Turn 3: "Vertel me meer" → Bot knows what "more" refers to
+```
+
+---
 
 ## Troubleshooting
 
 ### Ingestion Issues
 ```bash
-# Error: "No documents found"
+# No documents found
 → Check files are in data/ folder
-→ Verify file extensions (.docx, .pdf)
+→ Verify .docx extension
 
-# Error: "Pinecone namespace empty"
-→ Run: python scripts/run_ingestion.py
-→ Wait for completion
-
-# Error: "Vector ID must be ASCII"
-→ Rename files to remove special characters
+# Pinecone errors
+→ Check PINECONE_API_KEY in .env
+→ Verify index exists (check Pinecone dashboard)
 ```
 
 ### Query Issues
 ```bash
-# Error: "Index not found"
-→ Run ingestion first
+# "Index not found"
+→ Run ingestion first: python scripts/ingest.py
 
-# Error: "No chunks retrieved"
-→ Check namespace in config.py matches ingestion
-→ Verify documents were ingested successfully
+# Poor quality answers
+→ Increase query_top_k in config.py (try 8-10)
+→ Check if info actually exists in documents
 
-# Poor answers
-→ Increase top_k in config.py
-→ Adjust chunk_size (try 512 or 768)
-→ Check if information actually in documents
+# "I don't know" when it should know
+→ Try rephrasing question
+→ Check system_prompt.py (might be too strict)
 ```
+
+### Redis/Memory Issues
+```bash
+# Connection errors
+→ Check REDIS_HOST, REDIS_PORT, REDIS_PASSWORD in .env
+→ Test: python scripts/inspect_redis.py
+
+# Conversations not saving
+→ Check Redis connection
+→ Verify user_id is being passed correctly
+
+# Old conversations interfering
+→ Run: python scripts/inspect_redis.py
+→ Clear all conversations when prompted
+```
+
+---
+
+## Development Roadmap
+
+### Phase 1-3: Foundation ✅ (Complete)
+- [x] Document ingestion (DOCX)
+- [x] Vector storage (Pinecone)
+- [x] RAG query system
+- [x] Conversation memory (Redis)
+- [x] Context-aware questions
+- [x] Speed optimization (GPT-4o-mini)
+
+### Phase 4: Essential Features ⏳ (Current)
+- [ ] Query logging (database tracking)
+- [ ] Redis caching (speed + cost)
+- [ ] Input sanitization
+- [ ] Rate limiting
+
+### Phase 5: WhatsApp Integration (Next)
+- [ ] Twilio webhook setup
+- [ ] Message handling
+- [ ] Phone number routing
+- [ ] User authentication
+
+### Phase 6: Production Deployment
+- [ ] Deploy to Railway/Render
+- [ ] Environment setup
+- [ ] Monitoring (Sentry)
+- [ ] SSL/HTTPS
+
+### Phase 7: Scale & Polish
+- [ ] Multi-restaurant support
+- [ ] Analytics dashboard
+- [ ] Admin panel
+- [ ] Full rollout (20 restaurants)
+
+---
+
+## Cost Estimate
+
+**Current (Development):** ~€5/month
+- OpenAI API: ~€3/month
+- Pinecone: Free tier
+- Redis: Free tier
+
+**Production (20 Restaurants, 1000 queries/restaurant/month):**
+- OpenAI API: €15-25/month
+- Pinecone: €0-70/month (likely free tier)
+- Redis Cloud: €0/month (free tier)
+- Twilio WhatsApp: €10-15/month
+- Hosting: €5-15/month
+- **Total: €40-60/month realistic**
+- **Per restaurant: €2-3/month**
+- **Per query: €0.002-0.005**
+
+**Optimization opportunities:**
+- Redis caching → 40-60% cost reduction
+- Aggressive prompt caching → 20% additional reduction
+
+---
+
+## Testing Commands
+
+```bash
+# Interactive testing (main use)
+python scripts/test_query.py
+
+# Check system health
+python scripts/system_status.py
+
+# View Redis conversations
+python scripts/inspect_redis.py
+
+# Re-ingest documents
+python scripts/ingest.py
+```
+
+---
+
+## Performance
+
+**Current Metrics:**
+- Response time: ~1.3 seconds (query processing only)
+- First query: ~3s (cold start, one-time)
+- Subsequent queries: ~1.5s (warm connections)
+- Quality: No hallucinations with current prompt
+- Context retention: 10 turns, 30 minutes
+
+**Optimization Status:**
+- ✅ Model: GPT-4o-mini (16x cheaper than GPT-4o)
+- ✅ Embeddings: text-embedding-3-large (best quality)
+- ✅ Chunking: Optimized (600 chars, 200 overlap)
+- ⏳ Caching: Not yet implemented
+
+---
+
+## Key Design Decisions
+
+1. **GPT-4o-mini over GPT-4o**: 16x cheaper, 5x faster, quality sufficient
+2. **Redis over in-memory**: Persistent, multi-user, auto-cleanup
+3. **Custom code over LangChain**: Full control, easier debugging
+4. **Terminal testing over UI**: No caching issues, production-like
+5. **Separate system_prompt.py**: Easy iteration without breaking code
+
+---
+
+## Important Files to Edit
+
+**To change bot behavior:**
+- `src/query/system_prompt.py` - Edit `SYSTEM_PROMPT_SHORT`
+
+**To tune performance:**
+- `src/config.py` - Adjust chunk_size, top_k, temperature, etc.
+
+**To add documents:**
+- `data/` folder - Add .docx files, then run `python scripts/ingest.py`
+
+---
 
 ## Support
 
-- **Issues**: Check logs/ directory for error details
-- **Questions**: Review this README and QUICK_REFERENCE.md
-- **Logs**: All operations logged to logs/ with timestamps
+- **Logs**: Check `logs/` directory for detailed error info
+- **Issues**: Review troubleshooting section above
+- **Redis**: Use `inspect_redis.py` to debug conversations
+
+---
 
 ## License
 
-Internal use only - Smokey Joe's Franchise
+Internal use only - Yamie PastaBar Franchise
+
+---
+
+**Last Updated:** December 31, 2024  
+**Status:** Core system complete, conversation memory working  
+**Next Milestone:** WhatsApp integration 🚀

@@ -30,9 +30,19 @@ class Config:
     query_similarity_threshold: float = 0.0
     
     # LLM Settings
-    llm_model: str = "gpt-4o"               # OpenAI model for generation
-    llm_temperature: float = 0.2            # Low = more factual, high = more creative
-    llm_max_tokens: int = 600               # Max response length
+    llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
+    llm_temperature: float = 0.1            # Low = more factual, high = more creative
+    llm_max_tokens: int = 400               # Max response length
+
+    # Redis Settings (for caching + conversation memory)
+    redis_host: str = os.getenv("REDIS_HOST", "localhost")
+    redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+    redis_password: str = os.getenv("REDIS_PASSWORD", "")
+    redis_db: int = 0  # Database number (0-15)
+    
+    # Memory Settings
+    conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
+    max_conversation_turns: int = 10  # Remember last 5 Q&A pairs
 
      
     def validate(self):

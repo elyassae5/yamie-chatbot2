@@ -58,11 +58,12 @@ def run_preset_test(engine: QueryEngine):
     
     # Test question (you can change this)
     question = "Wie is Daoud en wat doet hij?"
+    user_id = "test_user"  # User ID for conversation memory
     
     logger.info(f"Testing with preset question: '{question}'")
     
     try:
-        response = engine.query(question)
+        response = engine.query(question, user_id=user_id)
         
         # Display result using the QueryResponse __str__ method
         print("\n" + "="*80)
@@ -88,9 +89,11 @@ def run_interactive_mode(engine: QueryEngine):
     print("Ask questions to test the chatbot.")
     print("Type 'quit', 'exit', or 'q' to stop.")
     print("Type 'debug' to toggle chunk details.")
+    print("Type 'reset' to clear conversation memory.")
     print("="*80 + "\n")
     
     show_chunks = False
+    user_id = "test_user"  # User ID for conversation memory
     
     while True:
         try:
@@ -111,10 +114,19 @@ def run_interactive_mode(engine: QueryEngine):
                 print(f"\n✓ Chunk details {status}")
                 continue
             
+            if question.lower() == 'reset':
+                # Clear conversation memory
+                if hasattr(engine, 'memory') and engine.memory:
+                    engine.memory.clear_conversation(user_id)
+                    print(f"\n✓ Conversation memory cleared!")
+                else:
+                    print(f"\n⚠️ Memory not available")
+                continue
+            
             # Process question
             logger.info(f"User question: '{question}'")
             
-            response = engine.query(question)
+            response = engine.query(question, user_id=user_id)
             
             # Display result
             print("\n" + "="*80)

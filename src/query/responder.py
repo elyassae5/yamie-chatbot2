@@ -44,7 +44,12 @@ class Responder:
         logger.info(f"  Temperature: {self.config.llm_temperature}")
         logger.info(f"  Max tokens: {self.config.llm_max_tokens}")
     
-    def generate_answer(self, question: str, chunks: list[RetrievedChunk]) -> QueryResponse:
+    def generate_answer(
+            self, 
+            question: str, 
+            chunks: list[RetrievedChunk],
+            conversation_history: str = ""
+        ) -> QueryResponse:
         """
         Generate an answer using retrieved chunks and LLM.
         
@@ -70,7 +75,11 @@ class Responder:
         
         # Build prompts
         try:
-            system_prompt, user_prompt = PromptBuilder.build_complete_prompt(question, chunks)
+            system_prompt, user_prompt = PromptBuilder.build_complete_prompt(
+                question, 
+                chunks, 
+                conversation_history
+            )
             logger.debug(f"System prompt length: {len(system_prompt)} chars")
             logger.debug(f"User prompt length: {len(user_prompt)} chars")
         except Exception as e:

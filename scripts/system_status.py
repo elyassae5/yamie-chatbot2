@@ -33,7 +33,7 @@ def print_header(text):
 
 
 def check_data_files():
-    """Check what PDF files are in the data directory"""
+    """Check what document files are in the data directory"""
     print_header("📁 DATA FILES")
     
     config = get_config()
@@ -43,26 +43,31 @@ def check_data_files():
         print(f"❌ Data directory not found: {data_dir}")
         return []
     
-    pdf_files = list(data_dir.glob("*.pdf"))
+    # Get all supported document files (PDF, DOCX, etc.)
+    all_files = []
+    for ext in config.supported_extensions:
+        all_files.extend(list(data_dir.glob(f"*{ext}")))
     
-    if not pdf_files:
-        print(f"⚠️  No PDF files found in {data_dir}")
+    if not all_files:
+        print(f"⚠️  No document files found in {data_dir}")
+        print(f"     Looking for: {', '.join(config.supported_extensions)}")
         return []
     
-    print(f"\nFound {len(pdf_files)} PDF files:\n")
+    print(f"\nFound {len(all_files)} document file(s):\n")
     
     total_size = 0
-    for i, pdf_file in enumerate(pdf_files, 1):
-        size_kb = pdf_file.stat().st_size / 1024
+    for i, doc_file in enumerate(all_files, 1):
+        size_kb = doc_file.stat().st_size / 1024
         total_size += size_kb
-        print(f"  {i}. {pdf_file.name}")
+        print(f"  {i}. {doc_file.name}")
         print(f"     Size: {size_kb:.1f} KB")
-        print(f"     Path: {pdf_file}")
+        print(f"     Type: {doc_file.suffix.upper()}")
+        print(f"     Path: {doc_file}")
         print()
     
     print(f"Total data size: {total_size:.1f} KB ({total_size/1024:.2f} MB)")
     
-    return pdf_files
+    return all_files
 
 
 def check_pinecone_status():
@@ -187,10 +192,17 @@ def health_check():
     # Check 1: Data files
     config = get_config()
     data_dir = Path(config.data_dir)
+    
     if not data_dir.exists():
         issues.append("Data directory does not exist")
-    elif not list(data_dir.glob("*.pdf")):
-        warnings.append("No PDF files in data directory")
+    else:
+        # Check for any supported document files
+        all_files = []
+        for ext in config.supported_extensions:
+            all_files.extend(list(data_dir.glob(f"*{ext}")))
+        
+        if not all_files:
+            warnings.append(f"No document files ({', '.join(config.supported_extensions)}) in data directory")
     
     # Check 2: API keys
     if not config.openai_api_key:
