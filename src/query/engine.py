@@ -231,18 +231,20 @@ class QueryEngine:
         # Build history context (last 5 turns max for efficiency)
         recent_history = conversation[-5:] if len(conversation) > 5 else conversation
         history_text = "\n".join([
-            f"User: {turn['question']}\nAssistant: {turn['answer']}"
+            f"User ASKED: {turn['question']}\nAssistant ANSWERED: {turn['answer']}"
             for turn in recent_history
         ])
         
         # Create transformation prompt
-        prompt = f"""Given this recent conversation:
+        prompt = f"""Given this recent conversation (HISTORY):
 
 {history_text}
 
 The user now asks: "{question}"
 
-If this question refers to something from the conversation history, rewrite it as a standalone question that can be understood without the history.
+If this question refers to something from the conversation history 
+(EITHER TO ONE OF THE USER'S PREVIOUS QUESTIONS OR TO A PART OF THE ASSISTANT'S ANSWERS), 
+rewrite it as a standalone question that can be understood without the history.
 
 If the question is already standalone and clear, return it exactly as-is.
 

@@ -184,11 +184,11 @@ class ConversationMemory:
         recent_conversation = conversation[-max_turns:] if len(conversation) > max_turns else conversation
         
         # Build context string
-        context_parts = ["Previous conversation:"]
+        context_parts = ["Previous conversation (NOT A SOURCE OF TRUTH (for conversational context only, NOT facts)):"]
         
         for turn in recent_conversation:  # ← ONLY RECENT TURNS!
-            context_parts.append(f"User: {turn['question']}")
-            context_parts.append(f"Assistant: {turn['answer']}")
+            context_parts.append(f"User previously asked: {turn['question']}")
+            context_parts.append(f"Assistant previously replied (MAY BE WRONG): {turn['answer']}")
             context_parts.append("")
         
         return "\n".join(context_parts)

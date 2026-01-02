@@ -10,4 +10,7 @@ env/
 
 # Log files
 logs/
-*.log
+*.log.gradio/
+
+# Gradio
+.gradio/

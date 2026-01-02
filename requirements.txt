@@ -11,8 +11,13 @@ tqdm
 docx2txt
 redis
 
-# LangChain (for conversation-aware retrieval)
-langchain
-langchain-openai
-langchain-pinecone
-langchain-community
+# Backend API
+fastapi
+uvicorn[standard]
+pydantic
+
+# Database (for logging)
+supabase
+
+# Frontend (for Gradio interface)
+gradio

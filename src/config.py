@@ -42,7 +42,7 @@ class Config:
     
     # Memory Settings
     conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
-    max_conversation_turns: int = 10  # Remember last 5 Q&A pairs
+    max_conversation_turns: int = 5  # Remember last N Q&A pairs
 
      
     def validate(self):
