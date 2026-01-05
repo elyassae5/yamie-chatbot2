@@ -21,3 +21,5 @@ supabase
 
 # Frontend (for Gradio interface)
 gradio
+
+structlog

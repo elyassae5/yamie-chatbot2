@@ -1,10 +1,10 @@
 """
 Query engine - main orchestrator for the question-answering system.
 Ties together retrieval, prompt building, and answer generation with
-comprehensive logging and monitoring.
+comprehensive structured logging and monitoring.
 """
 
-import logging
+import structlog
 from typing import Optional
 from datetime import datetime
 import openai
@@ -15,7 +15,7 @@ from src.query.retriever import Retriever
 from src.query.responder import Responder
 from src.memory.conversation_memory import ConversationMemory
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class QueryEngine:
@@ -41,27 +41,31 @@ class QueryEngine:
         """
         self.config = config or get_config()
         
-        logger.info("="*80)
-        logger.info("INITIALIZING YAMIEBOT QUERY ENGINE")
-        logger.info("="*80)
+        logger.info("query_engine_initialization_started")
         
         try:
             # Initialize components
-            logger.info("Initializing retriever...")
+            logger.info("initializing_component", component="retriever")
             self.retriever = Retriever(config=self.config)
             
-            logger.info("Initializing responder...")
+            logger.info("initializing_component", component="responder")
             self.responder = Responder(config=self.config)
             
-            logger.info("Initializing conversation memory...")
+            logger.info("initializing_component", component="conversation_memory")
             self.memory = ConversationMemory(config=self.config)
             
-            logger.info("="*80)
-            logger.info("✓ QUERY ENGINE READY")
-            logger.info("="*80)
+            logger.info(
+                "query_engine_ready",
+                status="initialized",
+                components=["retriever", "responder", "memory"]
+            )
             
         except Exception as e:
-            logger.error(f"Failed to initialize query engine: {e}", exc_info=True)
+            logger.error(
+                "query_engine_initialization_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise RuntimeError(f"Query engine initialization failed: {e}")
     
     def query(
@@ -84,7 +88,8 @@ class QueryEngine:
         5. Return structured response
          
         Args:
-            question: User's question (in Dutch or English)
+            question: User's question
+            user_id: User identifier for conversation tracking
             top_k: Number of chunks to retrieve (default from config)
             category_filter: Optional category to search in 
                            ("menu", "sop", "hr", "equipment", "franchise", "operations")
@@ -105,16 +110,20 @@ class QueryEngine:
         """
         query_start = datetime.utcnow()
         
-        logger.info("="*80)
-        logger.info("NEW QUERY")
-        logger.info("="*80)
-        logger.debug(f"Question: '{question}'")
+        logger.info(
+            "query_started",
+            question=question,
+            user_id=user_id,
+            top_k=top_k or self.config.query_top_k,
+            category_filter=category_filter
+        )
         
         # Sanitize input
         try:
             question = self._sanitize_question(question)
+            logger.debug("question_sanitized", sanitized_question=question)
         except ValueError as e:
-            logger.warning(f"Invalid question: {e}")
+            logger.warning("invalid_question", error=str(e), original_question=question)
             raise
         
         # Create request object
@@ -128,30 +137,47 @@ class QueryEngine:
         try:
             request.validate()
         except ValueError as e:
-            logger.error(f"Request validation failed: {e}")
+            logger.error("request_validation_failed", error=str(e), request=request)
             raise
-        
-        logger.info(f"Top-k: {request.top_k}")
-        if category_filter:
-            logger.info(f"Category filter: {category_filter}")
         
         # Transform question using conversation history (if available)
         original_question = question  # Keep original for display
         search_question = self._transform_question_with_history(question, user_id)
         
         if search_question != original_question:
-            logger.info(f"Question transformed for search: '{search_question}'")
+            logger.info(
+                "question_transformed",
+                original=original_question,
+                transformed=search_question,
+                user_id=user_id
+            )
         
         # Update request with transformed question for retrieval
         request.question = search_question
         
         # Step 1: Retrieve relevant chunks
-        logger.info("\n--- STAGE 1/2: RETRIEVAL ---")
+        logger.info(
+            "retrieval_started",
+            stage="1/2",
+            query=search_question,
+            top_k=request.top_k,
+            category_filter=category_filter
+        )
         
         try:
             chunks = self.retriever.retrieve(request)
+            logger.info(
+                "retrieval_completed",
+                chunks_retrieved=len(chunks) if chunks else 0,
+                query=search_question
+            )
         except Exception as e:
-            logger.error(f"Retrieval failed: {e}", exc_info=True)
+            logger.error(
+                "retrieval_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                query=search_question
+            )
             # Return error response instead of crashing
             return self._create_error_response(
                 question=question,
@@ -161,11 +187,21 @@ class QueryEngine:
         
         # Handle no results
         if not chunks:
-            logger.warning("No relevant chunks found")
+            logger.warning(
+                "no_chunks_found",
+                question=search_question,
+                top_k=request.top_k,
+                category_filter=category_filter
+            )
             return self._create_no_results_response(question, query_start)
         
         # Step 2: Generate answer using LLM
-        logger.info("\n--- STAGE 2/2: ANSWER GENERATION ---")
+        logger.info(
+            "answer_generation_started",
+            stage="2/2",
+            chunks_available=len(chunks),
+            has_conversation_history=bool(self.memory.get_conversation(user_id))
+        )
         
         try:
             response = self.responder.generate_answer(
@@ -173,8 +209,18 @@ class QueryEngine:
                 chunks=chunks,
                 conversation_history=self.memory.get_context_string(user_id),
             )
+            logger.info(
+                "answer_generated",
+                has_answer=response.has_answer,
+                sources_count=len(response.sources)
+            )
         except Exception as e:
-            logger.error(f"Answer generation failed: {e}", exc_info=True)
+            logger.error(
+                "answer_generation_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                question=original_question
+            )
             return self._create_error_response(
                 question=original_question,
                 error_message="Failed to generate answer. Please try again.",
@@ -185,17 +231,30 @@ class QueryEngine:
         if self.memory and response.has_answer:
             try:
                 self.memory.add_turn(user_id, original_question, response.answer)
-                logger.debug(f"Saved conversation turn to memory for user {user_id}")
+                logger.debug(
+                    "conversation_saved",
+                    user_id=user_id,
+                    turn_saved=True
+                )
             except Exception as e:
-                logger.warning(f"Failed to save to memory: {e}")
+                logger.warning(
+                    "conversation_save_failed",
+                    error=str(e),
+                    user_id=user_id
+                )
         
         # Calculate total query time
         total_time = (datetime.utcnow() - query_start).total_seconds()
         
-        logger.info("="*80)
-        logger.info(f"✓ QUERY COMPLETED in {total_time:.2f}s")
-        logger.info(f"Has answer: {response.has_answer}")
-        logger.info("="*80)
+        logger.info(
+            "query_completed",
+            user_id=user_id,
+            question=original_question,
+            response_time_seconds=total_time,
+            has_answer=response.has_answer,
+            chunks_retrieved=len(chunks),
+            sources_count=len(response.sources)
+        )
         
         return response
     
@@ -217,7 +276,11 @@ class QueryEngine:
         """
         # Check if memory is available
         if not self.memory or not self.memory.health_check():
-            logger.debug("Memory not available, skipping question transformation")
+            logger.debug(
+                "question_transformation_skipped",
+                reason="memory_unavailable",
+                user_id=user_id
+            )
             return question
         
         # Get conversation history
@@ -225,7 +288,11 @@ class QueryEngine:
         
         # If no history, return question as-is
         if not conversation:
-            logger.debug("No conversation history, using question as-is")
+            logger.debug(
+                "question_transformation_skipped",
+                reason="no_history",
+                user_id=user_id
+            )
             return question
         
         # Build history context (last 5 turns max for efficiency)
@@ -243,7 +310,7 @@ class QueryEngine:
 The user now asks: "{question}"
 
 If this question refers to something from the conversation history 
-(EITHER TO ONE OF THE USER'S PREVIOUS QUESTIONS OR TO A PART OF THE ASSISTANT'S ANSWERS), 
+(EITHER TO ONE OF THE USER'S PREVIOUS QUESTIONS OR TO A PART OF THE ASSISTANT'S ANSWERS [eg. its last one]), 
 rewrite it as a standalone question that can be understood without the history.
 
 If the question is already standalone and clear, return it exactly as-is.
@@ -252,7 +319,11 @@ Standalone question:"""
         
         try:
             # Use GPT-4o-mini for fast, cheap transformation
-            logger.debug("Transforming question with conversation history...")
+            logger.debug(
+                "question_transformation_started",
+                user_id=user_id,
+                history_turns=len(recent_history)
+            )
             
             response = openai.chat.completions.create(
                 model="gpt-4o-mini",
@@ -269,11 +340,22 @@ Standalone question:"""
             if transformed_question.startswith("'") and transformed_question.endswith("'"):
                 transformed_question = transformed_question[1:-1]
             
-            logger.debug(f"Transformed: '{question}' → '{transformed_question}'")
+            logger.debug(
+                "question_transformation_completed",
+                original=question,
+                transformed=transformed_question,
+                user_id=user_id
+            )
             return transformed_question
             
         except Exception as e:
-            logger.warning(f"Question transformation failed: {e}. Using original question.")
+            logger.warning(
+                "question_transformation_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=user_id,
+                fallback="using_original_question"
+            )
             return question
     
     def _sanitize_question(self, question: str) -> str:
@@ -305,12 +387,17 @@ Standalone question:"""
         
         # Length validation (prevent abuse)
         if len(question) > 500:
-            logger.warning(f"Question too long ({len(question)} chars) but not a big problem!")
+            logger.warning(
+                "question_length_warning",
+                length=len(question),
+                max_length=500,
+                truncated=False
+            )
         
         # Normalize whitespace (remove multiple spaces)
         question = ' '.join(question.split())
         
-        logger.debug(f"Sanitized question: '{question}' ({len(question)} chars)")
+        logger.debug("question_sanitized", length=len(question))
         
         return question
     
@@ -327,7 +414,11 @@ Standalone question:"""
         """
         response_time = (datetime.utcnow() - query_start).total_seconds()
         
-        logger.info(f"Creating 'no results' response (took {response_time:.2f}s)")
+        logger.info(
+            "no_results_response_created",
+            question=question,
+            response_time_seconds=response_time
+        )
         
         return QueryResponse(
             question=question,
@@ -356,7 +447,12 @@ Standalone question:"""
         """
         response_time = (datetime.utcnow() - query_start).total_seconds()
         
-        logger.error(f"Creating error response: {error_message}")
+        logger.error(
+            "error_response_created",
+            question=question,
+            error_message=error_message,
+            response_time_seconds=response_time
+        )
         
         return QueryResponse(
             question=question,
@@ -377,12 +473,17 @@ Standalone question:"""
             - retriever: Vector store stats (total vectors, namespace, etc.)
             - config: Current configuration settings
         """
-        logger.debug("Fetching query engine statistics")
+        logger.debug("fetching_engine_stats")
         
         try:
             retriever_stats = self.retriever.get_stats()
+            logger.debug("retriever_stats_fetched", stats=retriever_stats)
         except Exception as e:
-            logger.error(f"Failed to get retriever stats: {e}")
+            logger.error(
+                "retriever_stats_fetch_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             retriever_stats = {}
         
         stats = {
@@ -398,5 +499,5 @@ Standalone question:"""
             }
         }
         
-        logger.debug(f"Engine stats: {stats}")
+        logger.debug("engine_stats_compiled", stats_keys=list(stats.keys()))
         return stats

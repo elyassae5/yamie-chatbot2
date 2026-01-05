@@ -1,180 +1,144 @@
 """
-Centralized logging configuration for YamieBot.
-Sets up structured logging with console and file outputs.
+Production-grade logging configuration using structlog.
+
+This provides JSON-structured logs that are:
+- Parseable by log aggregators (Datadog, CloudWatch, etc.)
+- Searchable and queryable
+- Include context (user_id, request_id, etc.)
+- Production-ready
 """
 
 import logging
-import logging.handlers
 import sys
+import structlog
 from pathlib import Path
-from datetime import datetime
 
 
-def setup_logging(
-    level: str = "INFO",
-    log_to_file: bool = True,
-    log_dir: str = "logs",
-    log_filename: str = None,
-) -> None:
+def setup_logging(log_level: str = "INFO", log_file: str = None):
     """
-    Configure logging for the entire application.
-    
-    This function sets up:
-    - Console logging (colored output with timestamps)
-    - File logging (rotating files to prevent disk space issues)
-    - Proper formatting for both outputs
-    - Log level filtering
+    Configure structured logging for production.
     
     Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_to_file: Whether to write logs to files
-        log_dir: Directory to store log files
-        log_filename: Custom log filename (auto-generated if None)
-        
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file: Optional file path for logs (default: None, logs to console)
+    
     Example:
-        >>> from src.logging_config import setup_logging
-        >>> setup_logging(level="INFO", log_to_file=True)
-        >>> logger = logging.getLogger(__name__)
-        >>> logger.info("Application started")
+        >>> setup_logging(log_level="INFO")
+        >>> logger = structlog.get_logger()
+        >>> logger.info("user_logged_in", user_id="user_123", ip="192.168.1.1")
     """
     
-    # Convert string level to logging constant
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    # Convert log level string to logging constant
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     
-    # Create logs directory if it doesn't exist
-    if log_to_file:
-        log_path = Path(log_dir)
-        log_path.mkdir(exist_ok=True)
+    # Configure structlog processors (the pipeline that processes each log)
+    structlog.configure(
+        processors=[
+            # Add log level to log entry
+            structlog.stdlib.add_log_level,
+            # Add logger name to log entry
+            structlog.stdlib.add_logger_name,
+            # Add timestamp in ISO format
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            # If exception occurred, format it nicely
+            structlog.processors.format_exc_info,
+            # Decode unicode (handle special characters)
+            structlog.processors.UnicodeDecoder(),
+            # Render as JSON (production-ready format)
+            structlog.processors.JSONRenderer()
+        ],
+        # Context is stored in a dict
+        context_class=dict,
+        # Use standard library logging
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        # Cache logger on first use (performance optimization)
+        cache_logger_on_first_use=True,
+    )
     
-    # Clear any existing handlers (important for re-initialization)
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.setLevel(numeric_level)
+    # Configure standard library logging (structlog builds on top of this)
+    handlers = []
     
-    # ===== CONSOLE HANDLER =====
-    # Shows logs in terminal with colors and clean formatting
+    # Console handler (always enabled)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(numeric_level)
+    handlers.append(console_handler)
     
-    # Console format: simple and readable
-    console_format = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    console_handler.setFormatter(console_format)
-    root_logger.addHandler(console_handler)
-    
-    # ===== FILE HANDLER (Optional) =====
-    # Writes logs to rotating files to prevent disk space issues
-    if log_to_file:
-        # Generate filename if not provided
-        if log_filename is None:
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            log_filename = f"yamiebot_{timestamp}.log"
+    # File handler (optional, if log_file specified)
+    if log_file:
+        # Ensure logs directory exists
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
         
-        log_file_path = log_path / log_filename
-        
-        # Rotating file handler: creates new file when current reaches 10MB
-        # Keeps last 5 files (50MB total max)
-        file_handler = logging.handlers.RotatingFileHandler(
-            filename=log_file_path,
-            maxBytes=10 * 1024 * 1024,  # 10 MB per file
-            backupCount=5,  # Keep last 5 files
-            encoding='utf-8'
-        )
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setLevel(numeric_level)
-        
-        # File format: more detailed than console
-        file_format = logging.Formatter(
-            fmt='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        file_handler.setFormatter(file_format)
-        root_logger.addHandler(file_handler)
-        
-        # Log where we're storing logs
-        logging.info(f"Logging to file: {log_file_path}")
+        handlers.append(file_handler)
     
-    # ===== SUPPRESS NOISY LIBRARIES =====
-    # Some libraries are too verbose - quiet them down
-    logging.getLogger('httpx').setLevel(logging.WARNING)  # HTTP client
-    logging.getLogger('openai').setLevel(logging.WARNING)  # OpenAI SDK
-    logging.getLogger('urllib3').setLevel(logging.WARNING)  # URL library
-    logging.getLogger('pinecone').setLevel(logging.WARNING)  # Pinecone SDK
+    # Configure root logger
+    logging.basicConfig(
+        format="%(message)s",  # structlog handles formatting
+        level=numeric_level,
+        handlers=handlers,
+        force=True  # Override any existing configuration
+    )
     
-    logging.info(f"Logging configured: level={level}, file_logging={log_to_file}")
+    # Get a logger and log that setup is complete
+    logger = structlog.get_logger()
+    logger.info(
+        "logging_configured",
+        log_level=log_level,
+        log_file=log_file if log_file else "console_only",
+        structured=True
+    )
 
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name: str = None):
     """
-    Get a logger instance for a specific module.
-    
-    This is a convenience function that ensures logging is set up
-    and returns a properly configured logger.
+    Get a structured logger instance.
     
     Args:
-        name: Logger name (typically __name__ from the calling module)
-        
+        name: Optional logger name (typically __name__ of the module)
+    
     Returns:
-        Configured logger instance
-        
+        Structured logger that outputs JSON
+    
     Example:
-        >>> from src.logging_config import get_logger
         >>> logger = get_logger(__name__)
-        >>> logger.info("Processing started")
+        >>> logger.info("query_completed", user_id="user_123", response_time_ms=1250)
+        {"event": "query_completed", "user_id": "user_123", "response_time_ms": 1250, ...}
     """
-    return logging.getLogger(name)
+    if name:
+        return structlog.get_logger(name)
+    return structlog.get_logger()
 
 
-def set_log_level(level: str) -> None:
-    """
-    Change the logging level at runtime.
-    
-    Useful for temporarily enabling debug logging or reducing verbosity.
-    
-    Args:
-        level: New logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        
-    Example:
-        >>> from src.logging_config import set_log_level
-        >>> set_log_level("DEBUG")  # Enable verbose logging
-        >>> # ... do debugging ...
-        >>> set_log_level("INFO")   # Back to normal
-    """
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
-    logging.getLogger().setLevel(numeric_level)
-    
-    # Update all handlers
-    for handler in logging.getLogger().handlers:
-        handler.setLevel(numeric_level)
-    
-    logging.info(f"Log level changed to: {level}")
-
-
-# ===== EXAMPLE USAGE =====
+# Convenience function for testing
 if __name__ == "__main__":
-    """
-    Test the logging configuration.
-    Run: python -m src.logging_config
-    """
+    # Test the logging setup
+    setup_logging(log_level="INFO")
     
-    # Set up logging
-    setup_logging(level="DEBUG", log_to_file=True)
+    logger = get_logger("test")
     
-    # Get a logger
-    logger = logging.getLogger(__name__)
+    print("\n" + "="*80)
+    print("TESTING STRUCTURED LOGGING")
+    print("="*80 + "\n")
     
     # Test different log levels
-    logger.debug("This is a DEBUG message - very detailed")
-    logger.info("This is an INFO message - normal operation")
-    logger.warning("This is a WARNING message - something unusual")
-    logger.error("This is an ERROR message - something failed")
-    logger.critical("This is a CRITICAL message - system failure")
+    logger.debug("debug_message", detail="This is debug info")
+    logger.info("info_message", user_id="user_123", action="login")
+    logger.warning("warning_message", attempts=3, max_attempts=5)
+    logger.error("error_message", error_code="E001", error_msg="Something went wrong")
     
-    # Test exception logging
-    try:
-        x = 1 / 0
-    except Exception as e:
-        logger.error("An error occurred", exc_info=True)
+    # Test with context
+    logger.info(
+        "query_completed",
+        user_id="employee_daoud",
+        question="Wie is Daoud?",
+        response_time_ms=1240,
+        has_answer=True,
+        chunks_retrieved=7,
+        model="gpt-4o-mini"
+    )
     
-    print("\n✅ Logging test complete! Check the logs/ directory for the log file.")
+    print("\n" + "="*80)
+    print("✓ Structured logging working! Each log is valid JSON.")
+    print("="*80 + "\n")
