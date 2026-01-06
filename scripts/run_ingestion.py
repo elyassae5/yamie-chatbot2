@@ -13,9 +13,9 @@ sys.path.insert(0, str(project_root))
 
 from src.logging_config import setup_logging
 from src.ingestion.pipeline import IngestionPipeline
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def main():
@@ -23,18 +23,23 @@ def main():
     
     # Set up logging FIRST (before anything else)
     setup_logging(
-        level="INFO",           # Change to "DEBUG" for more detailed logs
-        log_to_file=True,       # Save logs to file
-        log_dir="logs",         # Logs directory
+        log_level="INFO",                    # Change to "DEBUG" for more detailed logs
+        log_file="logs/ingestion.log"        # Save logs to file
     )
     
-    logger.info("="*80)
-    logger.info("YAMIEBOT INGESTION SCRIPT")
-    logger.info("="*80)
+    logger.info("ingestion_script_started")
+    logger.info("script_message", message="YAMIEBOT INGESTION SCRIPT")
     
     try:
         # Initialize and run pipeline
         pipeline = IngestionPipeline()
+        
+        logger.info(
+            "pipeline_run_configuration",
+            clear_existing=True,
+            dry_run=False,
+            inspect_chunks=False
+        )
         
         results = pipeline.run(
             clear_existing=True,      # Clear old vectors before adding new ones
@@ -44,30 +49,37 @@ def main():
         
         # Check result
         if results["status"] == "success":
-            logger.info("\n" + "="*80)
-            logger.info("✅ INGESTION SUCCESSFUL!")
-            logger.info("="*80)
-            logger.info(f"Documents: {results['documents']}")
-            logger.info(f"Chunks: {results['chunks']}")
-            logger.info(f"Duration: {results['duration_seconds']}s")
+            logger.info("ingestion_successful", message="✅ INGESTION SUCCESSFUL!")
+            logger.info(
+                "ingestion_results",
+                documents=results['documents'],
+                chunks=results['chunks'],
+                duration_seconds=results['duration_seconds']
+            )
         elif results["status"] == "dry_run":
-            logger.info("\n" + "="*80)
-            logger.info("✅ DRY RUN COMPLETE")
-            logger.info("="*80)
-            logger.info(f"Would have created {results['chunks']} chunks")
-            logger.info(f"Estimated cost: ${results.get('estimated_cost_usd', 0):.4f}")
+            logger.info("dry_run_completed", message="✅ DRY RUN COMPLETE")
+            logger.info(
+                "dry_run_results",
+                chunks_would_create=results['chunks'],
+                estimated_cost_usd=round(results.get('estimated_cost_usd', 0), 4)
+            )
         else:
-            logger.error("\n" + "="*80)
-            logger.error("❌ INGESTION FAILED")
-            logger.error("="*80)
-            logger.error(f"Error: {results.get('error')}")
+            logger.error("ingestion_failed", message="❌ INGESTION FAILED")
+            logger.error(
+                "ingestion_error",
+                error=results.get('error')
+            )
             sys.exit(1)
             
     except KeyboardInterrupt:
-        logger.warning("\n❌ Ingestion interrupted by user")
+        logger.warning("ingestion_interrupted", reason="user_keyboard_interrupt")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"\n❌ Unexpected error: {e}", exc_info=True)
+        logger.error(
+            "ingestion_unexpected_error",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         sys.exit(1)
 
 

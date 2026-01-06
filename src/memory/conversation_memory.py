@@ -12,7 +12,7 @@ Features:
 - Persistent across server restarts
 """
 
-import logging
+import structlog
 import json
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -20,7 +20,7 @@ import redis
 
 from src.config import Config, get_config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ConversationMemory:
@@ -44,7 +44,11 @@ class ConversationMemory:
     def _connect(self):
         """Establish connection to Redis"""
         try:
-            logger.info(f"Connecting to Redis at {self.config.redis_host}:{self.config.redis_port}")
+            logger.info(
+                "redis_connection_started",
+                host=self.config.redis_host,
+                port=self.config.redis_port
+            )
             
             # Create Redis connection
             self.redis_client = redis.Redis(
@@ -60,14 +64,29 @@ class ConversationMemory:
             
             # Test connection
             self.redis_client.ping()
-            logger.info("✓ Successfully connected to Redis")
+            logger.info(
+                "redis_connected",
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                db=self.config.redis_db
+            )
             
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            logger.warning("Conversation memory will not work without Redis!")
+            logger.error(
+                "redis_connection_failed",
+                error=str(e),
+                error_type="ConnectionError",
+                host=self.config.redis_host,
+                port=self.config.redis_port
+            )
+            logger.warning("conversation_memory_disabled", reason="redis_unavailable")
             self.redis_client = None
         except Exception as e:
-            logger.error(f"Unexpected error connecting to Redis: {e}")
+            logger.error(
+                "redis_connection_unexpected_error",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             self.redis_client = None
       
     def _get_key(self, user_id: str) -> str:
@@ -95,7 +114,11 @@ class ConversationMemory:
             True if successful, False otherwise
         """
         if not self.redis_client:
-            logger.warning("Redis not available, cannot save conversation")
+            logger.warning(
+                "conversation_save_skipped",
+                reason="redis_unavailable",
+                user_id=user_id
+            )
             return False
         
         try:
@@ -126,11 +149,22 @@ class ConversationMemory:
                 value=json.dumps(conversation)
             )
             
-            logger.debug(f"Saved conversation turn for user {user_id} (total: {len(conversation)} turns)")
+            logger.debug(
+                "conversation_turn_saved",
+                user_id=user_id,
+                total_turns=len(conversation),
+                max_turns=max_turns,
+                ttl_seconds=self.config.conversation_ttl_seconds
+            )
             return True
             
         except Exception as e:
-            logger.error(f"Failed to save conversation turn: {e}")
+            logger.error(
+                "conversation_save_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=user_id
+            )
             return False
     
     def get_conversation(self, user_id: str) -> List[Dict]:
@@ -144,7 +178,11 @@ class ConversationMemory:
             List of conversation turns (Q&A pairs)
         """
         if not self.redis_client:
-            logger.warning("Redis not available, returning empty conversation")
+            logger.warning(
+                "conversation_retrieval_skipped",
+                reason="redis_unavailable",
+                user_id=user_id
+            )
             return []
         
         try:
@@ -154,17 +192,29 @@ class ConversationMemory:
             conversation_json = self.redis_client.get(key)
             
             if not conversation_json:
-                logger.debug(f"No conversation history found for user {user_id}")
+                logger.debug(
+                    "conversation_not_found",
+                    user_id=user_id
+                )
                 return []
             
             # Parse JSON
             conversation = json.loads(conversation_json)
-            logger.debug(f"Retrieved {len(conversation)} turns for user {user_id}")
+            logger.debug(
+                "conversation_retrieved",
+                user_id=user_id,
+                turns_count=len(conversation)
+            )
             
             return conversation
             
         except Exception as e:
-            logger.error(f"Failed to retrieve conversation: {e}")
+            logger.error(
+                "conversation_retrieval_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=user_id
+            )
             return []
     
     def get_context_string(self, user_id: str, max_turns: int = 5) -> str:
@@ -182,6 +232,14 @@ class ConversationMemory:
         
         # Only use last N turns
         recent_conversation = conversation[-max_turns:] if len(conversation) > max_turns else conversation
+        
+        logger.debug(
+            "context_string_generated",
+            user_id=user_id,
+            total_turns=len(conversation),
+            included_turns=len(recent_conversation),
+            max_turns=max_turns
+        )
         
         # Build context string
         context_parts = ["Previous conversation (NOT A SOURCE OF TRUTH (for conversational context only, NOT facts)):"]
@@ -204,17 +262,29 @@ class ConversationMemory:
             True if successful, False otherwise
         """
         if not self.redis_client:
-            logger.warning("Redis not available, cannot clear conversation")
+            logger.warning(
+                "conversation_clear_skipped",
+                reason="redis_unavailable",
+                user_id=user_id
+            )
             return False
         
         try:
             key = self._get_key(user_id)
             self.redis_client.delete(key)
-            logger.info(f"Cleared conversation for user {user_id}")
+            logger.info(
+                "conversation_cleared",
+                user_id=user_id
+            )
             return True
             
         except Exception as e:
-            logger.error(f"Failed to clear conversation: {e}")
+            logger.error(
+                "conversation_clear_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=user_id
+            )
             return False
     
     def get_stats(self) -> Dict:
@@ -237,10 +307,19 @@ class ConversationMemory:
                 'redis_connected': True,
             }
             
+            logger.debug(
+                "memory_stats_retrieved",
+                total_conversations=len(keys)
+            )
+            
             return stats
             
         except Exception as e:
-            logger.error(f"Failed to get stats: {e}")
+            logger.error(
+                "memory_stats_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             return {'error': str(e)}
     
     def health_check(self) -> bool:
@@ -267,22 +346,28 @@ if __name__ == "__main__":
     Run: python -m src.memory.conversation_memory
     """
     
-    # Set up basic logging
-    logging.basicConfig(level=logging.DEBUG)
+    # Set up structured logging
+    from src.logging_config import setup_logging
+    setup_logging(log_level="DEBUG")
+    
+    logger.info("test_started", module="conversation_memory")
     
     # Create memory instance
     memory = ConversationMemory()
     
     # Test health check
     if not memory.health_check():
+        logger.error("test_failed", reason="redis_not_connected")
         print("❌ Redis is not connected. Check your configuration!")
         exit(1)
     
+    logger.info("redis_health_check_passed")
     print("✅ Redis connected!")
     
     # Simulate a conversation
     user_id = "test_user_123"
     
+    logger.info("test_conversation_started", user_id=user_id)
     print(f"\n--- Testing conversation memory for user: {user_id} ---")
     
     # Clear any existing conversation
@@ -320,4 +405,5 @@ if __name__ == "__main__":
     # Clean up
     print("\n--- Cleaning up test data ---")
     memory.clear_conversation(user_id)
+    logger.info("test_completed", status="success")
     print("✓ Test complete!")

@@ -7,23 +7,27 @@ GET /api/stats
 
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-import logging
+import structlog
 
 from backend.models import QueryRequest, QueryResponse, ErrorResponse, Source
 from src.query import QueryEngine
 from src.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
 # Initialize QueryEngine (singleton - reused across requests)
-logger.info("Initializing QueryEngine...")
+logger.info("query_engine_initialization_started")
 try:
     engine = QueryEngine(config=get_config())
-    logger.info("✓ QueryEngine initialized successfully")
+    logger.info("query_engine_initialized", status="success")
 except Exception as e:
-    logger.error(f"Failed to initialize QueryEngine: {e}", exc_info=True)
+    logger.error(
+        "query_engine_initialization_failed",
+        error=str(e),
+        error_type=type(e).__name__
+    )
     engine = None
 
 
@@ -75,17 +79,20 @@ async def query(request: QueryRequest) -> QueryResponse:
     
     # Check if engine is initialized
     if engine is None:
-        logger.error("QueryEngine not initialized")
+        logger.error("query_rejected", reason="engine_not_initialized")
         raise HTTPException(
             status_code=500,
             detail="Query engine not initialized. Check server logs."
         )
     
     # Log incoming request
-    logger.info(f"Query received from user: {request.user_id}")
-    logger.debug(f"Question: {request.question}")
-    if request.debug:
-        logger.info("Debug mode enabled")
+    logger.info(
+        "query_received",
+        user_id=request.user_id,
+        debug_mode=request.debug,
+        top_k=request.top_k
+    )
+    logger.debug("query_question", question=request.question)
     
     start_time = datetime.utcnow()
     
@@ -112,7 +119,7 @@ async def query(request: QueryRequest) -> QueryResponse:
                         "source": chunk.source,
                         "category": chunk.category,
                         "score": round(chunk.similarity_score, 3),
-                        "text_preview": chunk.text[:200] + "..." if len(chunk.text) > 200 else chunk.text
+                        "text_preview": chunk.text[:300] + "..." if len(chunk.text) > 300 else chunk.text
                     }
                     for chunk in response.sources[:3]  # Top 3 chunks
                 ],
@@ -124,7 +131,11 @@ async def query(request: QueryRequest) -> QueryResponse:
                     for chunk in response.sources
                 ]
             }
-            logger.debug(f"Debug info: {debug_info}")
+            logger.debug(
+                "debug_info_generated",
+                chunks_retrieved=len(response.sources),
+                top_chunks_count=min(3, len(response.sources))
+            )
         
         # Convert to API response model
         api_response = QueryResponse(
@@ -146,8 +157,13 @@ async def query(request: QueryRequest) -> QueryResponse:
             debug_info=debug_info  # ← Include debug info!
         )
         
-        logger.info(f"✓ Query processed in {response.response_time_seconds:.2f}s")
-        logger.debug(f"Has answer: {response.has_answer}, Sources: {len(response.sources)}")
+        logger.info(
+            "query_processed",
+            response_time_seconds=round(response.response_time_seconds, 2),
+            has_answer=response.has_answer,
+            sources_count=len(response.sources),
+            user_id=request.user_id
+        )
         
         # TODO: Log to Supabase here (Phase 3)
         
@@ -155,12 +171,21 @@ async def query(request: QueryRequest) -> QueryResponse:
         
     except ValueError as e:
         # Invalid input (e.g., empty question)
-        logger.warning(f"Invalid query: {e}")
+        logger.warning(
+            "invalid_query",
+            error=str(e),
+            user_id=request.user_id
+        )
         raise HTTPException(status_code=400, detail=str(e))
         
     except Exception as e:
         # Unexpected error
-        logger.error(f"Query processing failed: {e}", exc_info=True)
+        logger.error(
+            "query_processing_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            user_id=request.user_id
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to process query: {str(e)}"
@@ -179,15 +204,22 @@ async def get_stats():
     """
     
     if engine is None:
+        logger.error("stats_rejected", reason="engine_not_initialized")
         raise HTTPException(status_code=500, detail="Query engine not initialized")
     
     try:
+        logger.debug("stats_request_received")
         stats = engine.get_stats()
+        logger.info("stats_retrieved", stats_available=True)
         return {
             "status": "ok",
             "stats": stats,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"Failed to get stats: {e}", exc_info=True)
+        logger.error(
+            "stats_retrieval_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise HTTPException(status_code=500, detail=str(e))

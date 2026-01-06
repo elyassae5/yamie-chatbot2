@@ -9,18 +9,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-import logging
+import structlog
 
 from backend.config import get_backend_config
 from backend.routes import query, health
 from backend import __version__
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Setup structured logging
+from src.logging_config import setup_logging
+
+# Initialize structured logging for the backend
+setup_logging(log_level="INFO")
+logger = structlog.get_logger(__name__)
 
 
 # Lifespan context manager for startup/shutdown
@@ -31,20 +31,17 @@ async def lifespan(app: FastAPI):
     Runs on startup and shutdown.
     """
     # Startup
-    logger.info("="*80)
-    logger.info("🚀 YAMIEBOT BACKEND STARTING")
-    logger.info("="*80)
-    logger.info(f"Version: {__version__}")
-    
-    # Initialize QueryEngine (happens in routes, but we log here)
-    logger.info("Initializing components...")
+    logger.info("backend_startup_started", version=__version__)
+    logger.info("backend_startup_message", message="🚀 YAMIEBOT BACKEND STARTING")
+    logger.info("backend_version", version=__version__)
+    logger.info("components_initialization", status="starting")
     
     yield
     
     # Shutdown
-    logger.info("="*80)
-    logger.info("👋 YAMIEBOT BACKEND SHUTTING DOWN")
-    logger.info("="*80)
+    logger.info("backend_shutdown_started")
+    logger.info("backend_shutdown_message", message="👋 YAMIEBOT BACKEND SHUTTING DOWN")
+    logger.info("backend_shutdown_completed")
 
 
 # Create FastAPI app
@@ -69,16 +66,27 @@ if config.cors_enabled:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.info(f"✓ CORS enabled for origins: {config.cors_origins}")
+    logger.info(
+        "cors_enabled",
+        origins=config.cors_origins,
+        allow_credentials=True
+    )
 
 # Include routers
 app.include_router(query.router, prefix="/api", tags=["Query"])
 app.include_router(health.router, prefix="/api", tags=["Health"])
 
+logger.info(
+    "routers_registered",
+    routers=["query", "health"],
+    prefix="/api"
+)
+
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint - API information."""
+    logger.debug("root_endpoint_accessed")
     return {
         "name": "YamieBot API",
         "version": __version__,
@@ -96,7 +104,13 @@ async def root():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Handle all uncaught exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error(
+        "unhandled_exception",
+        error=str(exc),
+        error_type=type(exc).__name__,
+        path=request.url.path,
+        method=request.method
+    )
     
     return JSONResponse(
         status_code=500,
@@ -110,7 +124,12 @@ async def global_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     
-    logger.info(f"Starting server on {config.host}:{config.port}")
+    logger.info(
+        "server_starting",
+        host=config.host,
+        port=config.port,
+        reload=config.reload
+    )
     
     uvicorn.run(
         "backend.main:app",

@@ -4,7 +4,7 @@ Calls OpenAI GPT-4o to generate answers based on retrieved context with
 comprehensive logging and error handling.
 """
 
-import logging
+import structlog
 from typing import Optional
 from datetime import datetime
 import openai
@@ -13,7 +13,7 @@ from src.config import Config, get_config
 from src.query.models import RetrievedChunk, QueryResponse
 from src.query.prompts import PromptBuilder
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class Responder:
@@ -39,10 +39,12 @@ class Responder:
         # Set OpenAI API key
         openai.api_key = self.config.openai_api_key
         
-        logger.info(f"Responder initialized")
-        logger.info(f"  Model: {self.config.llm_model}")
-        logger.info(f"  Temperature: {self.config.llm_temperature}")
-        logger.info(f"  Max tokens: {self.config.llm_max_tokens}")
+        logger.info(
+            "responder_initialized",
+            model=self.config.llm_model,
+            temperature=self.config.llm_temperature,
+            max_tokens=self.config.llm_max_tokens
+        )
     
     def generate_answer(
             self, 
@@ -63,15 +65,19 @@ class Responder:
         Args:
             question: User's question
             chunks: Retrieved context chunks
+            conversation_history: Optional conversation context
             
         Returns:
             QueryResponse with answer, sources, and metadata
         """
         start_time = datetime.utcnow()
         
-        logger.info(f"Generating answer for question")
-        logger.debug(f"Question: '{question}'")
-        logger.info(f"Context: {len(chunks)} chunk(s)")
+        logger.info(
+            "answer_generation_started",
+            chunks_count=len(chunks),
+            has_conversation_history=bool(conversation_history)
+        )
+        logger.debug("generation_question", question=question)
         
         # Build prompts
         try:
@@ -80,10 +86,17 @@ class Responder:
                 chunks, 
                 conversation_history
             )
-            logger.debug(f"System prompt length: {len(system_prompt)} chars")
-            logger.debug(f"User prompt length: {len(user_prompt)} chars")
+            logger.debug(
+                "prompts_built",
+                system_prompt_length=len(system_prompt),
+                user_prompt_length=len(user_prompt)
+            )
         except Exception as e:
-            logger.error(f"Failed to build prompts: {e}", exc_info=True)
+            logger.error(
+                "prompt_building_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -93,7 +106,7 @@ class Responder:
         
         # Call OpenAI API
         try:
-            logger.debug("Calling OpenAI API...")
+            logger.debug("openai_api_call_started")
             
             response = openai.chat.completions.create(
                 model=self.config.llm_model,
@@ -111,10 +124,11 @@ class Responder:
             # Log token usage
             if hasattr(response, 'usage') and response.usage:
                 logger.info(
-                    f"Token usage: "
-                    f"prompt={response.usage.prompt_tokens}, "
-                    f"completion={response.usage.completion_tokens}, "
-                    f"total={response.usage.total_tokens}"
+                    "token_usage",
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
+                    model=self.config.llm_model
                 )
             
             # Determine if we actually got an answer or a "don't know" response
@@ -123,9 +137,12 @@ class Responder:
             # Calculate response time
             response_time = (datetime.utcnow() - start_time).total_seconds()
             
-            logger.info(f"✓ Answer generated in {response_time:.2f}s")
-            logger.debug(f"Answer length: {len(answer)} chars")
-            logger.info(f"Has answer: {has_answer}")
+            logger.info(
+                "answer_generated",
+                response_time_seconds=round(response_time, 2),
+                answer_length=len(answer),
+                has_answer=has_answer
+            )
             
             return QueryResponse(
                 question=question,
@@ -136,7 +153,11 @@ class Responder:
             )
             
         except openai.APIError as e:
-            logger.error(f"OpenAI API error: {e}", exc_info=True)
+            logger.error(
+                "openai_api_error",
+                error=str(e),
+                error_type="APIError"
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -145,7 +166,10 @@ class Responder:
             )
         
         except openai.RateLimitError as e:
-            logger.warning(f"Rate limit exceeded: {e}")
+            logger.warning(
+                "openai_rate_limit_exceeded",
+                error=str(e)
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -154,7 +178,10 @@ class Responder:
             )
         
         except openai.AuthenticationError as e:
-            logger.error(f"Authentication error: {e}")
+            logger.error(
+                "openai_authentication_error",
+                error=str(e)
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -163,7 +190,10 @@ class Responder:
             )
         
         except openai.APIConnectionError as e:
-            logger.error(f"Connection error: {e}")
+            logger.error(
+                "openai_connection_error",
+                error=str(e)
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -172,7 +202,11 @@ class Responder:
             )
         
         except Exception as e:
-            logger.error(f"Unexpected error generating answer: {e}", exc_info=True)
+            logger.error(
+                "answer_generation_unexpected_error",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             return self._create_error_response(
                 question=question,
                 chunks=chunks,
@@ -216,10 +250,13 @@ class Responder:
         # Check if answer contains any "don't know" phrases
         for phrase in dont_know_phrases:
             if phrase in answer_lower:
-                logger.debug(f"Detected 'don't know' phrase: '{phrase}'")
+                logger.debug(
+                    "dont_know_phrase_detected",
+                    phrase=phrase
+                )
                 return False
         
-        logger.debug("Answer appears to be valid (contains information)")
+        logger.debug("answer_validated", has_information=True)
         return True
     
     def _create_error_response(
@@ -244,7 +281,11 @@ class Responder:
         Returns:
             QueryResponse with error message and metadata
         """
-        logger.error(f"Creating error response: {error_message}")
+        logger.error(
+            "error_response_created",
+            error_message=error_message,
+            response_time_seconds=round(response_time, 2)
+        )
         
         # User-friendly error message
         user_message = (
@@ -291,8 +332,13 @@ class Responder:
         total_cost = input_cost + output_cost
         
         logger.debug(
-            f"Estimated cost: ${total_cost:.6f} "
-            f"(input: ${input_cost:.6f}, output: ${output_cost:.6f})"
+            "cost_estimated",
+            total_cost_usd=round(total_cost, 6),
+            input_cost_usd=round(input_cost, 6),
+            output_cost_usd=round(output_cost, 6),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            model=self.config.llm_model
         )
         
         return total_cost

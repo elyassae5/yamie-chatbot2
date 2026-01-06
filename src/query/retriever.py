@@ -3,7 +3,7 @@ Retriever module - handles vector similarity search in Pinecone.
 Retrieves relevant document chunks for a given question with comprehensive logging.
 """
 
-import logging
+import structlog
 from typing import List, Optional
 from pinecone import Pinecone
 from llama_index.core import VectorStoreIndex
@@ -13,7 +13,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from src.config import Config, get_config
 from src.query.models import RetrievedChunk, QueryRequest
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class Retriever:
@@ -49,13 +49,16 @@ class Retriever:
             ValueError: If index doesn't exist or namespace is empty
             Exception: If connection or initialization fails
         """
-        logger.info(f"Initializing retriever for index: {self.config.pinecone_index_name}")
-        logger.info(f"Namespace: {self.config.pinecone_namespace}")
+        logger.info(
+            "retriever_initialization_started",
+            index_name=self.config.pinecone_index_name,
+            namespace=self.config.pinecone_namespace
+        )
         
         try:
             # Connect to Pinecone
             pc = Pinecone(api_key=self.config.pinecone_api_key)
-            logger.debug("Pinecone client created")
+            logger.debug("pinecone_client_created")
             
             # Verify index exists
             existing_indexes = pc.list_indexes().names()
@@ -66,10 +69,18 @@ class Retriever:
                     f"Available indexes: {existing_indexes}. "
                     f"Run ingestion first to create the index!"
                 )
-                logger.error(error_msg)
+                logger.error(
+                    "index_not_found",
+                    requested_index=self.config.pinecone_index_name,
+                    available_indexes=existing_indexes,
+                    error_message=error_msg
+                )
                 raise ValueError(error_msg)
             
-            logger.debug(f"Index '{self.config.pinecone_index_name}' exists")
+            logger.debug(
+                "index_verified",
+                index_name=self.config.pinecone_index_name
+            )
             
             # Get Pinecone index
             pinecone_index = pc.Index(self.config.pinecone_index_name)
@@ -85,24 +96,37 @@ class Retriever:
                     f"Namespace '{self.config.pinecone_namespace}' is empty (0 vectors). "
                     f"Run ingestion first to populate the index!"
                 )
-                logger.error(error_msg)
+                logger.error(
+                    "namespace_empty",
+                    namespace=self.config.pinecone_namespace,
+                    vector_count=0,
+                    error_message=error_msg
+                )
                 raise ValueError(error_msg)
             
-            logger.info(f"✓ Found {namespace_count} vectors in namespace '{self.config.pinecone_namespace}'")
+            logger.info(
+                "namespace_verified",
+                namespace=self.config.pinecone_namespace,
+                vector_count=namespace_count
+            )
             
             # Create vector store
             vector_store = PineconeVectorStore(
                 pinecone_index=pinecone_index,
                 namespace=self.config.pinecone_namespace,
             )
-            logger.debug("PineconeVectorStore created")
+            logger.debug("pinecone_vector_store_created")
             
             # Create embedding model (must match ingestion!)
             embed_model = OpenAIEmbedding(
                 model=self.config.embedding_model,
                 dimensions=self.config.embedding_dimensions,
             )
-            logger.debug(f"Embedding model initialized: {self.config.embedding_model}")
+            logger.debug(
+                "embedding_model_initialized",
+                model=self.config.embedding_model,
+                dimensions=self.config.embedding_dimensions
+            )
             
             # Create LlamaIndex vector store index
             self.index = VectorStoreIndex.from_vector_store(
@@ -110,13 +134,23 @@ class Retriever:
                 embed_model=embed_model,
             )
             
-            logger.info("✓ Retriever initialized successfully")
+            logger.info(
+                "retriever_initialized",
+                status="success",
+                index_name=self.config.pinecone_index_name,
+                namespace=self.config.pinecone_namespace,
+                vector_count=namespace_count
+            )
             
         except ValueError as e:
             # Re-raise ValueError (already has good message)
             raise
         except Exception as e:
-            logger.error(f"Failed to initialize retriever: {e}", exc_info=True)
+            logger.error(
+                "retriever_initialization_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise RuntimeError(f"Retriever initialization failed: {e}")
     
     def retrieve(self, request: QueryRequest) -> List[RetrievedChunk]:
@@ -143,21 +177,32 @@ class Retriever:
         """
         if not self.index:
             error_msg = "Retriever not initialized. Call _initialize() first."
-            logger.error(error_msg)
+            logger.error("retriever_not_initialized")
             raise RuntimeError(error_msg)
         
         # Validate request
         try:
             request.validate()
         except ValueError as e:
-            logger.error(f"Invalid query request: {e}")
+            logger.error(
+                "invalid_query_request",
+                error=str(e),
+                question=request.question
+            )
             raise
         
-        logger.info(f"Retrieving top {request.top_k} chunks")
-        logger.debug(f"Question: '{request.question}'")
+        logger.info(
+            "retrieval_started",
+            top_k=request.top_k,
+            category_filter=request.category_filter
+        )
+        logger.debug("retrieval_question", question=request.question)
         
         if request.category_filter:
-            logger.debug(f"Category filter: {request.category_filter}")
+            logger.debug(
+                "category_filter_applied",
+                category=request.category_filter
+            )
         
         try:
             # Create retriever from index
@@ -169,10 +214,13 @@ class Retriever:
             nodes = retriever.retrieve(request.question)
             
             if not nodes:
-                logger.warning("No chunks retrieved (empty result)")
+                logger.warning("retrieval_empty", message="No chunks retrieved")
                 return []
             
-            logger.debug(f"Retrieved {len(nodes)} raw nodes from Pinecone")
+            logger.debug(
+                "raw_nodes_retrieved",
+                count=len(nodes)
+            )
             
             # Convert nodes to RetrievedChunk objects with filtering
             chunks = self._process_nodes(nodes, request)
@@ -180,7 +228,11 @@ class Retriever:
             # Sort by similarity score (highest first)
             chunks.sort(key=lambda x: x.similarity_score, reverse=True)
             
-            logger.info(f"✓ Retrieved {len(chunks)} relevant chunks")
+            logger.info(
+                "retrieval_completed",
+                chunks_count=len(chunks),
+                top_k_requested=request.top_k
+            )
             
             # Log retrieval details
             self._log_retrieval_details(chunks)
@@ -188,7 +240,12 @@ class Retriever:
             return chunks
             
         except Exception as e:
-            logger.error(f"Retrieval failed: {e}", exc_info=True)
+            logger.error(
+                "retrieval_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                question=request.question
+            )
             raise
     
     def _process_nodes(self, nodes, request: QueryRequest) -> List[RetrievedChunk]:
@@ -215,8 +272,10 @@ class Retriever:
             # Apply similarity threshold filter
             if similarity_score < self.config.query_similarity_threshold:
                 logger.debug(
-                    f"Filtered out chunk from {source}: "
-                    f"score {similarity_score:.3f} < threshold {self.config.query_similarity_threshold}"
+                    "chunk_filtered_by_threshold",
+                    source=source,
+                    score=round(similarity_score, 3),
+                    threshold=self.config.query_similarity_threshold
                 )
                 filtered_count += 1
                 continue
@@ -224,8 +283,10 @@ class Retriever:
             # Apply category filter if specified
             if request.category_filter and category != request.category_filter:
                 logger.debug(
-                    f"Filtered out chunk from {source}: "
-                    f"category '{category}' != requested '{request.category_filter}'"
+                    "chunk_filtered_by_category",
+                    source=source,
+                    chunk_category=category,
+                    requested_category=request.category_filter
                 )
                 filtered_count += 1
                 continue
@@ -241,7 +302,11 @@ class Retriever:
             chunks.append(chunk)
         
         if filtered_count > 0:
-            logger.debug(f"Filtered out {filtered_count} chunks based on threshold/category")
+            logger.debug(
+                "chunks_filtered",
+                filtered_count=filtered_count,
+                remaining_count=len(chunks)
+            )
         
         return chunks
     
@@ -258,11 +323,18 @@ class Retriever:
         
         # Get unique sources
         sources = list(set(c.source for c in chunks))
-        logger.info(f"Sources: {', '.join(sources)}")
+        logger.info(
+            "retrieval_sources",
+            sources=sources,
+            unique_source_count=len(sources)
+        )
         
         # Show top 4 similarity scores
-        top_scores = [f"{c.similarity_score:.3f}" for c in chunks[:4]]
-        logger.info(f"Top 4 scores: {top_scores}")
+        top_scores = [round(c.similarity_score, 3) for c in chunks[:4]]
+        logger.info(
+            "retrieval_top_scores",
+            top_4_scores=top_scores
+        )
         
         # Category distribution
         categories = {}
@@ -270,13 +342,20 @@ class Retriever:
             categories[chunk.category] = categories.get(chunk.category, 0) + 1
         
         if len(categories) > 1:
-            logger.debug(f"Category distribution: {categories}")
+            logger.debug(
+                "category_distribution",
+                categories=categories
+            )
         
         # Score range
         if len(chunks) > 1:
             min_score = min(c.similarity_score for c in chunks)
             max_score = max(c.similarity_score for c in chunks)
-            logger.debug(f"Score range: {min_score:.3f} - {max_score:.3f}")
+            logger.debug(
+                "score_range",
+                min_score=round(min_score, 3),
+                max_score=round(max_score, 3)
+            )
     
     def get_stats(self) -> dict:
         """
@@ -290,7 +369,7 @@ class Retriever:
             - namespace_vectors: Vectors in current namespace
             - dimension: Vector dimension
         """
-        logger.debug("Fetching index statistics")
+        logger.debug("fetching_index_statistics")
         
         try:
             pc = Pinecone(api_key=self.config.pinecone_api_key)
@@ -306,9 +385,19 @@ class Retriever:
                 'dimension': stats.get('dimension', 0),
             }
             
-            logger.debug(f"Index stats: {result}")
+            logger.debug(
+                "index_stats_fetched",
+                total_vectors=result['total_vectors'],
+                namespace=result['namespace'],
+                namespace_vectors=result['namespace_vectors'],
+                dimension=result['dimension']
+            )
             return result
             
         except Exception as e:
-            logger.error(f"Failed to get index stats: {e}", exc_info=True)
+            logger.error(
+                "index_stats_fetch_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             return {}

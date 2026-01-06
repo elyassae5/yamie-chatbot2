@@ -3,7 +3,7 @@ Document loader with metadata extraction and validation.
 Uses LlamaIndex SimpleDirectoryReader for robust document handling (PDF, DOCX, etc).
 """
 
-import logging
+import structlog
 from pathlib import Path
 from typing import List
 from datetime import datetime
@@ -13,7 +13,7 @@ from llama_index.core.schema import Document
 
 from src.config import Config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DocumentLoader:
@@ -42,10 +42,19 @@ class DocumentLoader:
         
         for category, keywords in self.CATEGORY_KEYWORDS.items():
             if any(keyword in filename_lower for keyword in keywords):
-                logger.debug(f"Categorized '{filename}' as '{category}'")
+                logger.debug(
+                    "document_categorized",
+                    filename=filename,
+                    category=category
+                )
                 return category
         
-        logger.debug(f"No category match for '{filename}', using 'general'")
+        logger.debug(
+            "document_categorized",
+            filename=filename,
+            category="general",
+            reason="no_match"
+        )
         return "general"
 
     def _is_valid(self, document: Document) -> bool:
@@ -86,10 +95,11 @@ class DocumentLoader:
         document.metadata.update(metadata)
         
         logger.debug(
-            f"Enriched '{filename}': "
-            f"category={metadata['category']}, "
-            f"words={metadata['word_count']}, "
-            f"chars={metadata['char_count']}"
+            "metadata_enriched",
+            filename=filename,
+            category=metadata['category'],
+            word_count=metadata['word_count'],
+            char_count=metadata['char_count']
         )
         
         return document
@@ -104,12 +114,18 @@ class DocumentLoader:
         Raises:
             ValueError: If no documents found or data directory doesn't exist
         """
-        logger.info(f"Loading documents from: {self.data_dir}")
+        logger.info(
+            "document_loading_started",
+            data_dir=str(self.data_dir)
+        )
         
         # Validate data directory exists
         if not self.data_dir.exists():
             error_msg = f"Data directory does not exist: {self.data_dir}"
-            logger.error(error_msg)
+            logger.error(
+                "data_directory_not_found",
+                data_dir=str(self.data_dir)
+            )
             raise ValueError(error_msg)
         
         # Initialize reader
@@ -119,23 +135,44 @@ class DocumentLoader:
                 required_exts=self.supported_extensions,
                 filename_as_id=True,
             )
+            logger.debug(
+                "reader_initialized",
+                supported_extensions=self.supported_extensions
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize document reader: {e}")
+            logger.error(
+                "reader_initialization_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
         
         # Load documents
         try:
             documents = reader.load_data()
+            logger.debug("documents_loaded", count=len(documents))
         except Exception as e:
-            logger.error(f"Failed to load documents: {e}")
+            logger.error(
+                "documents_loading_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
         
         if not documents:
             error_msg = f"No documents found in {self.data_dir} with extensions {self.supported_extensions}"
-            logger.error(error_msg)
+            logger.error(
+                "no_documents_found",
+                data_dir=str(self.data_dir),
+                supported_extensions=self.supported_extensions
+            )
             raise ValueError(error_msg)
         
-        logger.info(f"Found {len(documents)} document(s) to process")
+        logger.info(
+            "documents_found",
+            count=len(documents),
+            data_dir=str(self.data_dir)
+        )
         
         # Validate and enrich documents
         valid_docs = []
@@ -147,7 +184,11 @@ class DocumentLoader:
             try:
                 # Validate document
                 if not self._is_valid(doc):
-                    logger.warning(f"Skipping invalid/empty document: {filename}")
+                    logger.warning(
+                        "document_skipped",
+                        filename=filename,
+                        reason="invalid_or_empty"
+                    )
                     skipped.append(filename)
                     continue
                 
@@ -158,17 +199,35 @@ class DocumentLoader:
                 enriched_doc = self._enrich_metadata(doc, file_path)
                 valid_docs.append(enriched_doc)
                 
-                logger.info(f"✓ Processed: {filename}")
+                logger.info(
+                    "document_processed",
+                    filename=filename,
+                    status="success"
+                )
                 
             except Exception as e:
-                logger.error(f"Error processing document '{filename}': {e}")
+                logger.error(
+                    "document_processing_failed",
+                    filename=filename,
+                    error=str(e),
+                    error_type=type(e).__name__
+                )
                 skipped.append(filename)
                 continue
         
         # Summary logging
-        logger.info(f"Successfully loaded {len(valid_docs)} valid document(s)")
+        logger.info(
+            "document_loading_completed",
+            valid_documents=len(valid_docs),
+            skipped_documents=len(skipped),
+            total_found=len(documents)
+        )
         
         if skipped:
-            logger.warning(f"Skipped {len(skipped)} document(s): {', '.join(skipped)}")
+            logger.warning(
+                "documents_skipped",
+                count=len(skipped),
+                filenames=skipped
+            )
         
         return valid_docs

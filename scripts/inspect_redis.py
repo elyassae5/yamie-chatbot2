@@ -11,10 +11,19 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.logging_config import setup_logging
 from src.memory.conversation_memory import ConversationMemory
+import structlog
 import json
 
+# Setup structured logging
+setup_logging(log_level="INFO")
+logger = structlog.get_logger(__name__)
+
+
 def main():
+    logger.info("redis_inspector_started")
+    
     print("=" * 80)
     print("REDIS DATABASE INSPECTOR")
     print("=" * 80)
@@ -24,9 +33,11 @@ def main():
     
     # Check connection
     if not memory.health_check():
+        logger.error("redis_connection_failed")
         print("\n❌ Redis is not connected!")
         return
     
+    logger.info("redis_connected")
     print("\n✅ Connected to Redis!")
     
     # Get all conversation keys
@@ -34,9 +45,14 @@ def main():
         all_keys = memory.redis_client.keys("conversation:*")
         
         if not all_keys:
+            logger.info("no_conversations_found")
             print("\n📭 No conversations stored in Redis")
             return
         
+        logger.info(
+            "conversations_found",
+            count=len(all_keys)
+        )
         print(f"\n📊 Found {len(all_keys)} conversation(s) in Redis:\n")
         
         for key in all_keys:
@@ -49,6 +65,12 @@ def main():
             
             if conversation_json:
                 conversation = json.loads(conversation_json)
+                
+                logger.debug(
+                    "conversation_inspected",
+                    key=key,
+                    turns=len(conversation)
+                )
                 
                 print(f"Number of turns: {len(conversation)}")
                 print(f"\nConversation history:")
@@ -64,8 +86,18 @@ def main():
                 ttl = memory.redis_client.ttl(key)
                 if ttl > 0:
                     minutes = ttl // 60
+                    logger.debug(
+                        "conversation_ttl",
+                        key=key,
+                        ttl_seconds=ttl,
+                        ttl_minutes=minutes
+                    )
                     print(f"\n⏰ TTL: {ttl} seconds ({minutes} minutes remaining)")
                 else:
+                    logger.warning(
+                        "conversation_ttl_expired",
+                        key=key
+                    )
                     print(f"\n⏰ TTL: Expired or no TTL set")
             
             print("\n")
@@ -75,15 +107,30 @@ def main():
         choice = input("\nDo you want to CLEAR all conversations? (yes/no): ").strip().lower()
         
         if choice in ['yes', 'y']:
+            logger.info(
+                "conversations_clearing_started",
+                count=len(all_keys)
+            )
             for key in all_keys:
                 memory.redis_client.delete(key)
+            logger.info(
+                "conversations_cleared",
+                count=len(all_keys)
+            )
             print("\n✅ All conversations cleared!")
         else:
+            logger.info("conversations_kept")
             print("\n📝 Conversations kept as-is")
         
     except Exception as e:
+        logger.error(
+            "redis_inspection_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         print(f"\n❌ Error: {e}")
     
+    logger.info("redis_inspector_completed")
     print("\n" + "=" * 80)
 
 

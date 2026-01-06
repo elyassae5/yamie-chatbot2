@@ -3,7 +3,7 @@ Main ingestion pipeline orchestrator.
 Coordinates document loading, chunking, embedding, and vector storage.
 """
 
-import logging
+import structlog
 from datetime import datetime
 from typing import Optional
  
@@ -15,7 +15,7 @@ from src.ingestion.loader import DocumentLoader
 from src.ingestion.chunker import DocumentChunker
 from src.ingestion.vector_store import create_storage_context
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IngestionPipeline:
@@ -38,13 +38,13 @@ class IngestionPipeline:
         """
         self.config = config or get_config()
         
-        logger.info("Initializing ingestion pipeline")
+        logger.info("pipeline_initialization_started")
         
         # Initialize components
         self.loader = DocumentLoader(self.config)
         self.chunker = DocumentChunker(self.config)
         
-        logger.debug("Pipeline components initialized")
+        logger.debug("pipeline_components_initialized")
 
     def run(
         self, 
@@ -68,26 +68,24 @@ class IngestionPipeline:
         """
         start_time = datetime.utcnow()
         
-        logger.info("="*80)
-        logger.info("🚀 STARTING INGESTION PIPELINE")
-        logger.info("="*80)
+        logger.info(
+            "pipeline_run_started",
+            clear_existing=clear_existing,
+            dry_run=dry_run,
+            inspect_chunks=inspect_chunks
+        )
+        logger.info("pipeline_message", message="🚀 STARTING INGESTION PIPELINE")
         
         # Display configuration
         self.config.display()
         
         try:
             # Stage 1: Load documents
-            logger.info("\n" + "="*80)
-            logger.info("STAGE 1/4: Loading Documents")
-            logger.info("="*80)
-            
+            logger.info("pipeline_stage", stage="1/4", name="Loading Documents")
             documents = self._load_documents()
             
             # Stage 2: Chunk documents
-            logger.info("\n" + "="*80)
-            logger.info("STAGE 2/4: Chunking Documents")
-            logger.info("="*80)
-            
+            logger.info("pipeline_stage", stage="2/4", name="Chunking Documents")
             nodes = self._chunk_documents(documents, inspect_chunks)
             
             # Dry run exit point
@@ -95,24 +93,22 @@ class IngestionPipeline:
                 return self._handle_dry_run(documents, nodes, start_time)
             
             # Stage 3: Create storage context
-            logger.info("\n" + "="*80)
-            logger.info("STAGE 3/4: Initializing Vector Store")
-            logger.info("="*80)
-            
+            logger.info("pipeline_stage", stage="3/4", name="Initializing Vector Store")
             storage_context = self._create_storage_context(clear_existing)
             
             # Stage 4: Embed and store
-            logger.info("\n" + "="*80)
-            logger.info("STAGE 4/4: Embedding and Storing Vectors")
-            logger.info("="*80)
-            
+            logger.info("pipeline_stage", stage="4/4", name="Embedding and Storing Vectors")
             self._embed_and_store(nodes, storage_context)
             
             # Success!
             return self._create_success_result(documents, nodes, start_time)
             
         except Exception as e:
-            logger.error(f"❌ Pipeline failed: {e}", exc_info=True)
+            logger.error(
+                "pipeline_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             duration = (datetime.utcnow() - start_time).total_seconds()
             
             return {
@@ -125,28 +121,42 @@ class IngestionPipeline:
         """Load documents from data directory."""
         try:
             documents = self.loader.load()
-            logger.info(f"✓ Loaded {len(documents)} document(s)")
+            logger.info(
+                "documents_loaded",
+                count=len(documents),
+                status="success"
+            )
             return documents
         except Exception as e:
-            logger.error(f"Document loading failed: {e}")
+            logger.error(
+                "document_loading_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
 
     def _chunk_documents(self, documents, inspect_chunks: bool):
         """Chunk documents into nodes."""
         try:
             nodes = self.chunker.chunk(documents)
-            logger.info(f"✓ Created {len(nodes)} chunk(s)")
+            logger.info(
+                "chunks_created",
+                count=len(nodes),
+                status="success"
+            )
             
             # Optional inspection
             if inspect_chunks:
-                logger.info("\n" + "-"*80)
-                logger.info("Inspecting Chunks...")
-                logger.info("-"*80)
+                logger.info("chunk_inspection", status="starting")
                 self.chunker.inspect(nodes, num_samples=5)
             
             return nodes
         except Exception as e:
-            logger.error(f"Chunking failed: {e}")
+            logger.error(
+                "chunking_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
 
     def _create_storage_context(self, clear_existing: bool):
@@ -156,10 +166,18 @@ class IngestionPipeline:
                 self.config,
                 clear_namespace=clear_existing,
             )
-            logger.info("✓ Storage context initialized")
+            logger.info(
+                "storage_context_initialized",
+                clear_existing=clear_existing,
+                status="success"
+            )
             return storage_context
         except Exception as e:
-            logger.error(f"Storage context creation failed: {e}")
+            logger.error(
+                "storage_context_creation_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
 
     def _embed_and_store(self, nodes, storage_context):
@@ -172,10 +190,13 @@ class IngestionPipeline:
                 embed_batch_size=self.config.embedding_batch_size,
             )
             
-            logger.info(f"Using embedding model: {self.config.embedding_model}")
-            logger.info(f"Batch size: {self.config.embedding_batch_size}")
-            logger.info(f"Dimensions: {self.config.embedding_dimensions}")
-            logger.info("\nGenerating embeddings and uploading to Pinecone...")
+            logger.info(
+                "embedding_configuration",
+                model=self.config.embedding_model,
+                batch_size=self.config.embedding_batch_size,
+                dimensions=self.config.embedding_dimensions
+            )
+            logger.info("embedding_started", message="Generating embeddings and uploading to Pinecone...")
             
             # Build index (this does embedding + storage)
             VectorStoreIndex(
@@ -185,27 +206,31 @@ class IngestionPipeline:
                 show_progress=True,
             )
             
-            logger.info("✓ Vectors embedded and stored successfully")
+            logger.info("embedding_completed", status="success")
             
         except Exception as e:
-            logger.error(f"Embedding/storage failed: {e}")
-            logger.error("Note: If namespace was cleared, vectors may be lost!")
+            logger.error(
+                "embedding_storage_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                warning="vectors_may_be_lost_if_namespace_cleared"
+            )
             raise
 
     def _handle_dry_run(self, documents, nodes, start_time) -> dict:
         """Handle dry run completion."""
         duration = (datetime.utcnow() - start_time).total_seconds()
         
-        logger.info("\n" + "="*80)
-        logger.info("✓ DRY RUN COMPLETE")
-        logger.info("="*80)
-        logger.info("No embeddings were created or stored.")
-        logger.info("This was a test run to verify document loading and chunking.")
+        logger.info("dry_run_completed", message="✓ DRY RUN COMPLETE")
+        logger.info("dry_run_note", message="No embeddings were created or stored")
         
         # Estimate costs
         estimated_cost = self._estimate_embedding_cost(nodes)
-        logger.info(f"\nEstimated embedding cost: ${estimated_cost:.4f}")
-        logger.info(f"Chunks that would be embedded: {len(nodes)}")
+        logger.info(
+            "dry_run_estimate",
+            estimated_cost_usd=round(estimated_cost, 4),
+            chunks_to_embed=len(nodes)
+        )
         
         return {
             "status": "dry_run",
@@ -232,28 +257,41 @@ class IngestionPipeline:
             cost_per_1k = 0.00013
         
         estimated_cost = (total_tokens / 1000) * cost_per_1k
+        
+        logger.debug(
+            "cost_estimation",
+            total_tokens=round(total_tokens, 0),
+            cost_per_1k=cost_per_1k,
+            estimated_cost_usd=round(estimated_cost, 4)
+        )
+        
         return estimated_cost
 
     def _create_success_result(self, documents, nodes, start_time) -> dict:
         """Create success result dictionary with statistics."""
         duration = (datetime.utcnow() - start_time).total_seconds()
         
-        logger.info("\n" + "="*80)
-        logger.info("✅ INGESTION COMPLETE!")
-        logger.info("="*80)
-        logger.info(f"Documents processed: {len(documents)}")
-        logger.info(f"Chunks created: {len(nodes)}")
-        logger.info(f"Duration: {duration:.2f}s")
-        logger.info(f"Index: {self.config.pinecone_index_name}")
-        logger.info(f"Namespace: {self.config.pinecone_namespace}")
-        
         # Calculate statistics
         avg_chunk_size = sum(len(node.text) for node in nodes) / len(nodes) if nodes else 0
+        chunks_per_doc = len(nodes) / len(documents) if documents else 0
+        processing_speed = len(nodes) / duration if duration > 0 else 0
         
-        logger.info(f"\nStatistics:")
-        logger.info(f"  Average chunk size: {avg_chunk_size:.0f} chars")
-        logger.info(f"  Vectors per document: {len(nodes) / len(documents):.1f}")
-        logger.info(f"  Processing speed: {len(nodes) / duration:.1f} chunks/sec")
+        logger.info("ingestion_completed", message="✅ INGESTION COMPLETE!")
+        logger.info(
+            "ingestion_summary",
+            documents_processed=len(documents),
+            chunks_created=len(nodes),
+            duration_seconds=round(duration, 2),
+            index=self.config.pinecone_index_name,
+            namespace=self.config.pinecone_namespace
+        )
+        
+        logger.info(
+            "ingestion_statistics",
+            avg_chunk_size_chars=round(avg_chunk_size, 0),
+            chunks_per_document=round(chunks_per_doc, 1),
+            processing_speed_chunks_per_sec=round(processing_speed, 1)
+        )
         
         return {
             "status": "success",
@@ -261,8 +299,8 @@ class IngestionPipeline:
             "chunks": len(nodes),
             "duration_seconds": round(duration, 2),
             "avg_chunk_size_chars": round(avg_chunk_size, 0),
-            "chunks_per_document": round(len(nodes) / len(documents), 1),
-            "processing_speed_chunks_per_sec": round(len(nodes) / duration, 1),
+            "chunks_per_document": round(chunks_per_doc, 1),
+            "processing_speed_chunks_per_sec": round(processing_speed, 1),
             "index": self.config.pinecone_index_name,
             "namespace": self.config.pinecone_namespace,
         }

@@ -11,31 +11,35 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.logging_config import setup_logging
-from src.query import QueryEngine
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def main():
     """Run query engine tests with proper logging."""
     
-    # Set up logging
+    # Set up logging (FIXED: Updated parameters)
     setup_logging(
-        level="INFO",  # Change to "DEBUG" for detailed logs
-        log_to_file=True,
-        log_dir="logs",
+        log_level="INFO",  # Change to "DEBUG" for detailed logs
+        log_file="logs/test_query.log"  # Optional: specify log file path
     )
     
-    logger.info("="*80)
-    logger.info("YAMIEBOT QUERY ENGINE - QUICK TEST")
-    logger.info("="*80)
+    logger.info("test_started", script="test_query.py")
+    logger.info("separator", message="="*80)
+    logger.info("test_title", title="YAMIEBOT QUERY ENGINE - QUICK TEST")
+    logger.info("separator", message="="*80)
     
     # Initialize engine
     try:
+        from src.query import QueryEngine
         engine = QueryEngine()
     except Exception as e:
-        logger.error(f"Failed to initialize engine: {e}", exc_info=True)
+        logger.error(
+            "engine_initialization_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         return
     
     # Ask user: preset question or interactive?
@@ -53,14 +57,18 @@ def main():
         run_preset_test(engine)
 
 
-def run_preset_test(engine: QueryEngine):
+def run_preset_test(engine):
     """Run a single preset test question."""
     
     # Test question (you can change this)
     question = "Wie is Daoud en wat doet hij?"
     user_id = "test_user"  # User ID for conversation memory
     
-    logger.info(f"Testing with preset question: '{question}'")
+    logger.info(
+        "preset_test_started",
+        question=question,
+        user_id=user_id
+    )
     
     try:
         response = engine.query(question, user_id=user_id)
@@ -71,17 +79,27 @@ def run_preset_test(engine: QueryEngine):
         print("="*80)
         print(response)
         
+        logger.info(
+            "preset_test_completed",
+            has_answer=response.has_answer,
+            response_time=response.response_time_seconds
+        )
+        
         # Optional: Show chunk details (uncomment if needed)
         # _display_chunk_details(response)
         
     except Exception as e:
-        logger.error(f"Query failed: {e}", exc_info=True)
+        logger.error(
+            "preset_test_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
 
 
-def run_interactive_mode(engine: QueryEngine):
+def run_interactive_mode(engine):
     """Run in interactive mode - user can ask multiple questions."""
     
-    logger.info("Starting interactive mode")
+    logger.info("interactive_mode_started")
     
     print("\n" + "="*80)
     print("INTERACTIVE MODE")
@@ -105,13 +123,14 @@ def run_interactive_mode(engine: QueryEngine):
             
             # Check for commands
             if question.lower() in ['quit', 'exit', 'q']:
-                logger.info("User exited interactive mode")
+                logger.info("interactive_mode_exited", reason="user_command")
                 break
             
             if question.lower() == 'debug':
                 show_chunks = not show_chunks
                 status = "enabled" if show_chunks else "disabled"
                 print(f"\n✓ Chunk details {status}")
+                logger.info("debug_mode_toggled", status=status)
                 continue
             
             if question.lower() == 'reset':
@@ -119,12 +138,14 @@ def run_interactive_mode(engine: QueryEngine):
                 if hasattr(engine, 'memory') and engine.memory:
                     engine.memory.clear_conversation(user_id)
                     print(f"\n✓ Conversation memory cleared!")
+                    logger.info("conversation_memory_cleared", user_id=user_id)
                 else:
                     print(f"\n⚠️ Memory not available")
+                    logger.warning("memory_not_available")
                 continue
             
             # Process question
-            logger.info(f"User question: '{question}'")
+            logger.info("user_question", question=question, user_id=user_id)
             
             response = engine.query(question, user_id=user_id)
             
@@ -134,16 +155,27 @@ def run_interactive_mode(engine: QueryEngine):
             print("="*80)
             print(response)
             
+            logger.info(
+                "query_result",
+                has_answer=response.has_answer,
+                response_time=response.response_time_seconds,
+                sources_count=len(response.sources)
+            )
+            
             # Optionally show chunk details
             if show_chunks:
                 _display_chunk_details(response)
             
         except KeyboardInterrupt:
-            logger.info("User interrupted with Ctrl+C")
+            logger.info("interactive_mode_interrupted", reason="ctrl_c")
             print("\n\n👋 Goodbye!")
             break
         except Exception as e:
-            logger.error(f"Error processing question: {e}", exc_info=True)
+            logger.error(
+                "query_error",
+                error=str(e),
+                error_type=type(e).__name__
+            )
             print(f"\n❌ Error: {e}")
 
 

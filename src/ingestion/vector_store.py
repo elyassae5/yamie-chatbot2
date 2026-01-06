@@ -3,7 +3,7 @@ Pinecone vector store initialization and management.
 Handles index creation, namespace management, and StorageContext setup.
 """
 
-import logging
+import structlog
 import time
 from pinecone import Pinecone, ServerlessSpec
 from llama_index.vector_stores.pinecone import PineconeVectorStore
@@ -11,7 +11,7 @@ from llama_index.core import StorageContext
 
 from src.config import Config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def create_storage_context(config: Config, clear_namespace: bool = False) -> StorageContext:
@@ -35,22 +35,28 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
         ValueError: If API key is missing or invalid
         Exception: If Pinecone operations fail
     """
-    logger.info(f"Initializing Pinecone connection...")
-    logger.info(f"  Index: {config.pinecone_index_name}")
-    logger.info(f"  Namespace: {config.pinecone_namespace}")
+    logger.info(
+        "pinecone_initialization_started",
+        index=config.pinecone_index_name,
+        namespace=config.pinecone_namespace
+    )
     
     # Validate API key
     if not config.pinecone_api_key:
         error_msg = "Pinecone API key is missing in configuration"
-        logger.error(error_msg)
+        logger.error("pinecone_api_key_missing")
         raise ValueError(error_msg)
     
     # Initialize Pinecone client
     try:
         pc = Pinecone(api_key=config.pinecone_api_key)
-        logger.debug("Pinecone client initialized successfully")
+        logger.debug("pinecone_client_initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize Pinecone client: {e}")
+        logger.error(
+            "pinecone_client_initialization_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise ValueError(f"Invalid Pinecone API key or connection failed: {e}")
     
     # Check if index exists
@@ -58,17 +64,28 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
     
     try:
         existing_indexes = pc.list_indexes().names()
-        logger.debug(f"Found {len(existing_indexes)} existing index(es)")
+        logger.debug(
+            "pinecone_indexes_listed",
+            existing_indexes_count=len(existing_indexes)
+        )
     except Exception as e:
-        logger.error(f"Failed to list Pinecone indexes: {e}")
+        logger.error(
+            "pinecone_list_indexes_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise
     
     # Create index if it doesn't exist
     if index_name not in existing_indexes:
-        logger.info(f"Index '{index_name}' not found - creating new index...")
-        logger.info(f"  Dimension: {config.embedding_dimensions}")
-        logger.info(f"  Metric: cosine")
-        logger.info(f"  Cloud: AWS (us-east-1)")
+        logger.info(
+            "pinecone_index_creation_started",
+            index=index_name,
+            dimension=config.embedding_dimensions,
+            metric="cosine",
+            cloud="aws",
+            region="us-east-1"
+        )
         
         try:
             pc.create_index(
@@ -80,24 +97,44 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
                     region="us-east-1",
                 ),
             )
-            logger.info(f"✓ Index '{index_name}' created successfully")
+            logger.info(
+                "pinecone_index_created",
+                index=index_name,
+                status="success"
+            )
             
             # Wait for index to be ready (serverless indexes need initialization time)
-            logger.info("Waiting for index to be ready...")
+            logger.info("pinecone_index_initialization", message="Waiting for index to be ready...")
             time.sleep(5)  # Give Pinecone time to initialize
             
         except Exception as e:
-            logger.error(f"Failed to create index '{index_name}': {e}")
+            logger.error(
+                "pinecone_index_creation_failed",
+                index=index_name,
+                error=str(e),
+                error_type=type(e).__name__
+            )
             raise
     else:
-        logger.info(f"✓ Index '{index_name}' already exists")
+        logger.info(
+            "pinecone_index_exists",
+            index=index_name
+        )
     
     # Connect to index
     try:
         index = pc.Index(index_name)
-        logger.debug(f"Connected to index '{index_name}'")
+        logger.debug(
+            "pinecone_index_connected",
+            index=index_name
+        )
     except Exception as e:
-        logger.error(f"Failed to connect to index '{index_name}': {e}")
+        logger.error(
+            "pinecone_index_connection_failed",
+            index=index_name,
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise
     
     # Log current index statistics
@@ -107,19 +144,32 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
         namespaces = stats.get('namespaces', {})
         namespace_vectors = namespaces.get(config.pinecone_namespace, {}).get('vector_count', 0)
         
-        logger.info(f"Current index stats:")
-        logger.info(f"  Total vectors (all namespaces): {total_vectors}")
-        logger.info(f"  Vectors in '{config.pinecone_namespace}': {namespace_vectors}")
+        logger.info(
+            "pinecone_index_stats",
+            total_vectors_all_namespaces=total_vectors,
+            namespace=config.pinecone_namespace,
+            namespace_vectors=namespace_vectors
+        )
         
         if len(namespaces) > 1:
-            logger.debug(f"  Other namespaces: {list(namespaces.keys())}")
+            logger.debug(
+                "pinecone_other_namespaces",
+                namespaces=list(namespaces.keys())
+            )
             
     except Exception as e:
-        logger.warning(f"Could not retrieve index stats: {e}")
+        logger.warning(
+            "pinecone_stats_retrieval_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
     
     # Clear namespace if requested
     if clear_namespace:
-        logger.info(f"Clearing namespace '{config.pinecone_namespace}'...")
+        logger.info(
+            "pinecone_namespace_clearing_started",
+            namespace=config.pinecone_namespace
+        )
         
         try:
             # Check if namespace exists and has vectors
@@ -128,18 +178,38 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
             namespace_vectors = namespaces.get(config.pinecone_namespace, {}).get('vector_count', 0)
             
             if namespace_vectors > 0:
-                logger.info(f"  Deleting {namespace_vectors} existing vector(s)...")
+                logger.info(
+                    "pinecone_namespace_deleting_vectors",
+                    namespace=config.pinecone_namespace,
+                    vectors_to_delete=namespace_vectors
+                )
                 index.delete(delete_all=True, namespace=config.pinecone_namespace)
-                logger.info(f"✓ Namespace '{config.pinecone_namespace}' cleared")
+                logger.info(
+                    "pinecone_namespace_cleared",
+                    namespace=config.pinecone_namespace,
+                    status="success"
+                )
             else:
-                logger.info(f"  Namespace '{config.pinecone_namespace}' is empty or doesn't exist yet")
+                logger.info(
+                    "pinecone_namespace_empty",
+                    namespace=config.pinecone_namespace
+                )
                 
         except Exception as e:
             # Namespace might not exist yet - that's okay
             if "not found" in str(e).lower() or "does not exist" in str(e).lower():
-                logger.info(f"  Namespace '{config.pinecone_namespace}' doesn't exist yet - will be created during ingestion")
+                logger.info(
+                    "pinecone_namespace_not_exists",
+                    namespace=config.pinecone_namespace,
+                    message="Will be created during ingestion"
+                )
             else:
-                logger.error(f"Failed to clear namespace: {e}")
+                logger.error(
+                    "pinecone_namespace_clear_failed",
+                    namespace=config.pinecone_namespace,
+                    error=str(e),
+                    error_type=type(e).__name__
+                )
                 raise
     
     # Create vector store wrapper
@@ -148,18 +218,29 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
             pinecone_index=index,
             namespace=config.pinecone_namespace,
         )
-        logger.debug("PineconeVectorStore created")
+        logger.debug("pinecone_vector_store_created")
     except Exception as e:
-        logger.error(f"Failed to create PineconeVectorStore: {e}")
+        logger.error(
+            "pinecone_vector_store_creation_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise
     
     # Create storage context
     try:
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        logger.info("✓ Storage context initialized successfully")
+        logger.info(
+            "storage_context_initialized",
+            status="success"
+        )
         return storage_context
     except Exception as e:
-        logger.error(f"Failed to create StorageContext: {e}")
+        logger.error(
+            "storage_context_creation_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         raise
 
 
@@ -182,6 +263,12 @@ def get_index_stats(config: Config) -> dict:
         index = pc.Index(config.pinecone_index_name)
         stats = index.describe_index_stats()
         
+        logger.debug(
+            "index_stats_retrieved",
+            index=config.pinecone_index_name,
+            total_vectors=stats.get('total_vector_count', 0)
+        )
+        
         return {
             'total_vectors': stats.get('total_vector_count', 0),
             'dimension': stats.get('dimension', 0),
@@ -191,5 +278,9 @@ def get_index_stats(config: Config) -> dict:
             ).get('vector_count', 0)
         }
     except Exception as e:
-        logger.error(f"Failed to get index stats: {e}")
+        logger.error(
+            "index_stats_retrieval_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         return {}

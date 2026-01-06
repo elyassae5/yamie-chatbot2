@@ -20,9 +20,15 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.logging_config import setup_logging
 from src.config import get_config
 from pinecone import Pinecone
+import structlog
 import os
+
+# Setup structured logging
+setup_logging(log_level="INFO")
+logger = structlog.get_logger(__name__)
 
 
 def print_header(text):
@@ -34,12 +40,14 @@ def print_header(text):
 
 def check_data_files():
     """Check what document files are in the data directory"""
+    logger.debug("data_files_check_started")
     print_header("📁 DATA FILES")
     
     config = get_config()
     data_dir = Path(config.data_dir)
     
     if not data_dir.exists():
+        logger.error("data_directory_not_found", data_dir=str(data_dir))
         print(f"❌ Data directory not found: {data_dir}")
         return []
     
@@ -49,16 +57,31 @@ def check_data_files():
         all_files.extend(list(data_dir.glob(f"*{ext}")))
     
     if not all_files:
+        logger.warning(
+            "no_documents_found",
+            data_dir=str(data_dir),
+            supported_extensions=config.supported_extensions
+        )
         print(f"⚠️  No document files found in {data_dir}")
         print(f"     Looking for: {', '.join(config.supported_extensions)}")
         return []
     
-    print(f"\nFound {len(all_files)} document file(s):\n")
-    
     total_size = 0
-    for i, doc_file in enumerate(all_files, 1):
+    for doc_file in all_files:
         size_kb = doc_file.stat().st_size / 1024
         total_size += size_kb
+    
+    logger.info(
+        "data_files_found",
+        count=len(all_files),
+        total_size_kb=round(total_size, 1),
+        total_size_mb=round(total_size/1024, 2)
+    )
+    
+    print(f"\nFound {len(all_files)} document file(s):\n")
+    
+    for i, doc_file in enumerate(all_files, 1):
+        size_kb = doc_file.stat().st_size / 1024
         print(f"  {i}. {doc_file.name}")
         print(f"     Size: {size_kb:.1f} KB")
         print(f"     Type: {doc_file.suffix.upper()}")
@@ -72,6 +95,7 @@ def check_data_files():
 
 def check_pinecone_status():
     """Check Pinecone vector database status"""
+    logger.debug("pinecone_status_check_started")
     print_header("🗄️  PINECONE VECTOR DATABASE")
     
     try:
@@ -85,11 +109,17 @@ def check_pinecone_status():
         print(f"Namespace: {config.pinecone_namespace}")
         
         if config.pinecone_index_name not in existing_indexes:
+            logger.error(
+                "pinecone_index_not_found",
+                index=config.pinecone_index_name,
+                existing_indexes=existing_indexes
+            )
             print(f"\n❌ Index '{config.pinecone_index_name}' does NOT exist!")
             print(f"   Available indexes: {existing_indexes if existing_indexes else 'None'}")
             print(f"\n   → You need to run ingestion first!")
             return None
         
+        logger.info("pinecone_index_exists", index=config.pinecone_index_name)
         print(f"✅ Index exists")
         
         # Get index stats
@@ -100,12 +130,24 @@ def check_pinecone_status():
         namespace_stats = stats.get('namespaces', {})
         namespace_vectors = namespace_stats.get(config.pinecone_namespace, {}).get('vector_count', 0)
         
+        logger.info(
+            "pinecone_stats",
+            total_vectors=total_vectors,
+            namespace=config.pinecone_namespace,
+            namespace_vectors=namespace_vectors,
+            dimension=stats.get('dimension', 'unknown')
+        )
+        
         print(f"\n📊 Statistics:")
         print(f"   Total vectors (all namespaces): {total_vectors}")
         print(f"   Vectors in '{config.pinecone_namespace}': {namespace_vectors}")
         print(f"   Dimension: {stats.get('dimension', 'unknown')}")
         
         if namespace_vectors == 0:
+            logger.warning(
+                "pinecone_namespace_empty",
+                namespace=config.pinecone_namespace
+            )
             print(f"\n⚠️  Warning: Namespace '{config.pinecone_namespace}' is empty!")
             print(f"   → Run ingestion to populate the index")
         
@@ -119,15 +161,29 @@ def check_pinecone_status():
         return stats
         
     except Exception as e:
+        logger.error(
+            "pinecone_connection_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         print(f"\n❌ Error connecting to Pinecone: {e}")
         return None
 
 
 def check_configuration():
     """Display current configuration settings"""
+    logger.debug("configuration_check_started")
     print_header("⚙️  CONFIGURATION")
     
     config = get_config()
+    
+    logger.info(
+        "configuration_loaded",
+        chunk_size=config.chunk_size,
+        chunk_overlap=config.chunk_overlap,
+        embedding_model=config.embedding_model,
+        llm_model=config.llm_model
+    )
     
     print("\n📄 Document Processing:")
     print(f"   Data directory: {config.data_dir}")
@@ -156,6 +212,7 @@ def check_configuration():
 
 def check_environment():
     """Check environment setup"""
+    logger.debug("environment_check_started")
     print_header("🌍 ENVIRONMENT")
     
     print("\n📦 Python Environment:")
@@ -163,7 +220,15 @@ def check_environment():
     
     # Check if .env exists
     env_file = project_root / ".env"
-    print(f"   .env file: {'✅ Found' if env_file.exists() else '❌ Not found'}")
+    env_exists = env_file.exists()
+    
+    logger.info(
+        "environment_checked",
+        python_version=sys.version.split()[0],
+        env_file_exists=env_exists
+    )
+    
+    print(f"   .env file: {'✅ Found' if env_exists else '❌ Not found'}")
     
     # Check required packages
     print("\n📚 Required Packages:")
@@ -174,16 +239,25 @@ def check_environment():
         "dotenv",
     ]
     
+    missing_packages = []
     for package in required:
         try:
             __import__(package.replace("-", "_"))
             print(f"   ✅ {package}")
         except ImportError:
             print(f"   ❌ {package} (NOT INSTALLED)")
+            missing_packages.append(package)
+    
+    if missing_packages:
+        logger.warning(
+            "missing_packages",
+            packages=missing_packages
+        )
 
 
 def health_check():
     """Overall system health check"""
+    logger.debug("health_check_started")
     print_header("🏥 HEALTH CHECK")
     
     issues = []
@@ -224,6 +298,20 @@ def health_check():
     except Exception as e:
         issues.append(f"Cannot connect to Pinecone: {e}")
     
+    # Log health check results
+    is_healthy = len(issues) == 0
+    logger.info(
+        "health_check_completed",
+        is_healthy=is_healthy,
+        issues_count=len(issues),
+        warnings_count=len(warnings)
+    )
+    
+    if issues:
+        logger.error("health_check_issues", issues=issues)
+    if warnings:
+        logger.warning("health_check_warnings", warnings=warnings)
+    
     # Display results
     if not issues and not warnings:
         print("\n✅ System is healthy and ready to use!")
@@ -238,10 +326,12 @@ def health_check():
             for warning in warnings:
                 print(f"   • {warning}")
     
-    return len(issues) == 0
+    return is_healthy
 
 
 def main():
+    logger.info("system_status_script_started")
+    
     print("\n" + "=" * 80)
     print("  🎛️  YAMIEBOT SYSTEM STATUS")
     print("=" * 80)
@@ -259,11 +349,13 @@ def main():
         # Summary
         print_header("📝 SUMMARY")
         if is_healthy:
+            logger.info("system_ready", status="healthy")
             print("\n✅ Your system is ready to use!")
             print("\n   Next steps:")
             print("   1. Run 'python scripts/test_query.py' to test queries")
             print("   2. Or run 'python scripts/test_suite.py' for comprehensive testing")
         else:
+            logger.warning("system_needs_attention", status="has_issues")
             print("\n⚠️  Your system has issues that need to be fixed.")
             print("\n   Next steps:")
             print("   1. Fix the issues listed above")
@@ -272,7 +364,14 @@ def main():
         
         print("\n" + "=" * 80 + "\n")
         
+        logger.info("system_status_script_completed")
+        
     except Exception as e:
+        logger.error(
+            "system_status_script_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
         print(f"\n❌ Error during system check: {e}")
         import traceback
         traceback.print_exc()
