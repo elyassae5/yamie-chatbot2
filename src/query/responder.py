@@ -5,9 +5,18 @@ comprehensive logging and error handling.
 """
 
 import structlog
+import logging
 from typing import Optional
 from datetime import datetime
 import openai
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log
+)
 
 from src.config import Config, get_config
 from src.query.models import RetrievedChunk, QueryResponse
@@ -46,6 +55,58 @@ class Responder:
             max_tokens=self.config.llm_max_tokens
         )
     
+
+    @retry(
+        stop=stop_after_attempt(3),  # Try up to 3 times
+        wait=wait_exponential(multiplier=1, min=2, max=10),  # Wait 2s, 4s, 8s
+        retry=retry_if_exception_type((
+            openai.APIError,
+            openai.APIConnectionError,
+            openai.RateLimitError,
+            openai.APITimeoutError
+        )),
+        before_sleep=before_sleep_log(logger, logging.WARNING)
+    )
+    def _call_openai_with_retry(self, messages: list, model: str, temperature: float, max_tokens: int):
+        """
+        Call OpenAI API with automatic retry on transient failures.
+        
+        Retry strategy:
+        - Up to 3 attempts total
+        - Exponential backoff: 2s, 4s, 8s between retries
+        - Only retry on: Network errors, timeouts, rate limits
+        - Don't retry on: Authentication errors, invalid requests
+        
+        Args:
+            messages: Chat messages for the API
+            model: Model name (e.g., "gpt-4o-mini")
+            temperature: Temperature setting
+            max_tokens: Max tokens in response
+            
+        Returns:
+            OpenAI API response object
+            
+        Raises:
+            openai.APIError: If all retries fail
+        """
+        logger.debug(
+            "openai_api_call_attempt",
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        response = openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        
+        logger.debug("openai_api_call_successful")
+        
+        return response
+
     def generate_answer(
             self, 
             question: str, 
@@ -108,14 +169,14 @@ class Responder:
         try:
             logger.debug("openai_api_call_started")
             
-            response = openai.chat.completions.create(
-                model=self.config.llm_model,
+            response = self._call_openai_with_retry(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
+                model=self.config.llm_model,
                 temperature=self.config.llm_temperature,
-                max_tokens=self.config.llm_max_tokens,
+                max_tokens=self.config.llm_max_tokens
             )
             
             # Extract answer from response

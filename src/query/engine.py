@@ -362,10 +362,10 @@ Standalone question:"""
         """
         Sanitize and validate the input question.
         
-        Ensures:
-        - Question is not empty
-        - Question is not too long (prevents abuse)
-        - Whitespace is normalized
+        Security philosophy: Keep it simple!
+        - Block HTML/script tags (could break frontend)
+        - Block obvious SQL injection syntax (best practice)
+        - Allow everything else (users are just asking questions about documents)
         
         Args:
             question: Raw user input
@@ -374,8 +374,9 @@ Standalone question:"""
             Sanitized question string
             
         Raises:
-            ValueError: If question is invalid
+            ValueError: If question is invalid or contains dangerous patterns
         """
+        # Basic emptiness check
         if not question:
             raise ValueError("Question cannot be empty")
         
@@ -383,24 +384,88 @@ Standalone question:"""
         question = question.strip()
         
         if not question:
-            raise ValueError("Question cannot be empty after stripping whitespace")
+            raise ValueError("Question cannot be empty")
         
-        # Length validation (prevent abuse)
+        # HARD length limit (prevent abuse and cost overflow)
         if len(question) > 500:
             logger.warning(
-                "question_length_warning",
+                "question_too_long",
                 length=len(question),
                 max_length=500,
-                truncated=False
+                action="rejected"
+            )
+            raise ValueError(
+                f"Question is too long ({len(question)} characters). "
+                f"Maximum allowed is 500 characters. Please shorten your question."
             )
         
-        # Normalize whitespace (remove multiple spaces)
+        # Normalize whitespace (replace newlines and multiple spaces)
         question = ' '.join(question.split())
         
-        logger.debug("question_sanitized", length=len(question))
+        # Security: Check for patterns that could cause technical issues
+        question_lower = question.lower()
+        
+        # 1. HTML/Script tags (could break frontend rendering or cause XSS)
+        html_patterns = [
+            "<script",
+            "</script>",
+            "<iframe",
+            "</iframe>",
+            "javascript:",
+            "<img",
+            "<svg",
+            "onerror=",
+            "onload=",
+            "onclick=",
+        ]
+        
+        for pattern in html_patterns:
+            if pattern in question_lower:
+                logger.warning(
+                    "html_pattern_detected",
+                    question=question,
+                    detected_pattern=pattern,
+                    action="rejected"
+                )
+                raise ValueError(
+                    "Your question contains HTML or script patterns. "
+                    "Please ask your question in plain text."
+                )
+        
+        # 2. SQL Injection SYNTAX (extreme cases only - actual injection patterns)
+        # Only block patterns that are CLEARLY malicious, not normal language
+        sql_injection_patterns = [
+            "'; drop",
+            "\"; drop",
+            "' or '1'='1",
+            "\" or \"1\"=\"1",
+            "';--",
+            "\";--",
+        ]
+        
+        for pattern in sql_injection_patterns:
+            if pattern in question_lower:
+                logger.warning(
+                    "sql_injection_pattern_detected",
+                    question=question,
+                    detected_pattern=pattern,
+                    action="rejected"
+                )
+                raise ValueError(
+                    "Your question contains patterns that look like code injection. "
+                    "Please rephrase in plain language."
+                )
+        
+        # All checks passed!
+        logger.debug(
+            "question_sanitized",
+            length=len(question),
+            checks_passed=True
+        )
         
         return question
     
+
     def _create_no_results_response(self, question: str, query_start: datetime) -> QueryResponse:
         """
         Create a response when no relevant chunks are found.

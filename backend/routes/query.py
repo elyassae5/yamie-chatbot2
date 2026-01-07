@@ -5,7 +5,8 @@ POST /api/query
 GET /api/stats
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi_limiter.depends import RateLimiter
 from datetime import datetime
 import structlog
 
@@ -37,12 +38,22 @@ except Exception as e:
     responses={
         200: {"description": "Query processed successfully"},
         400: {"model": ErrorResponse, "description": "Invalid request"},
+        429: {"description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Server error"},
     }
 )
-async def query(request: QueryRequest) -> QueryResponse:
+async def query(
+    request: QueryRequest,
+    http_request: Request,
+    rate_limit_user: None = Depends(RateLimiter(times=20, seconds=60)),
+    rate_limit_ip: None = Depends(RateLimiter(times=60, seconds=60))
+) -> QueryResponse:
     """
     Process a question and return an answer.
+
+    Rate limits:
+    - Per user: 20 requests per minute
+    - Per IP: 60 requests per minute (allows multiple users from same location)
     
     This endpoint:
     1. Validates the input
@@ -85,10 +96,13 @@ async def query(request: QueryRequest) -> QueryResponse:
             detail="Query engine not initialized. Check server logs."
         )
     
-    # Log incoming request
+    # Log incoming request with IP address
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    
     logger.info(
         "query_received",
         user_id=request.user_id,
+        client_ip=client_ip,
         debug_mode=request.debug,
         top_k=request.top_k
     )

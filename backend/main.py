@@ -11,6 +11,9 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import structlog
 
+from fastapi_limiter import FastAPILimiter
+import redis.asyncio as redis
+
 from backend.config import get_backend_config
 from backend.routes import query, health
 from backend import __version__
@@ -36,12 +39,60 @@ async def lifespan(app: FastAPI):
     logger.info("backend_version", version=__version__)
     logger.info("components_initialization", status="starting")
     
+    # Initialize rate limiter with Redis
+    try:
+        # Import config to get Redis credentials
+        from src.config import get_config
+        src_config = get_config()
+        
+        logger.info(
+            "rate_limiter_initialization_started",
+            redis_host=src_config.redis_host,
+            redis_port=src_config.redis_port
+        )
+        
+        # Create async Redis connection
+        redis_connection = redis.from_url(
+            f"redis://:{src_config.redis_password}@{src_config.redis_host}:{src_config.redis_port}",
+            encoding="utf-8",
+            decode_responses=True
+        )
+        
+        # Initialize FastAPILimiter
+        await FastAPILimiter.init(redis_connection)
+        
+        logger.info(
+            "rate_limiter_initialized",
+            status="success",
+            redis_host=src_config.redis_host
+        )
+        
+    except Exception as e:
+        logger.error(
+            "rate_limiter_initialization_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
+        raise RuntimeError(f"Rate limiter initialization failed: {e}")
+    
     yield
     
     # Shutdown
     logger.info("backend_shutdown_started")
+    
+    # Close rate limiter
+    try:
+        await FastAPILimiter.close()
+        logger.info("rate_limiter_closed")
+    except Exception as e:
+        logger.warning(
+            "rate_limiter_close_failed",
+            error=str(e)
+        )
+    
     logger.info("backend_shutdown_message", message="👋 YAMIEBOT BACKEND SHUTTING DOWN")
     logger.info("backend_shutdown_completed")
+
 
 
 # Create FastAPI app
@@ -98,6 +149,37 @@ async def root():
             "stats": "/api/stats"
         }
     }
+
+# Rate limit exception handler
+@app.exception_handler(HTTPException)
+async def rate_limit_handler(request, exc: HTTPException):
+    """Handle rate limit exceptions with better messages."""
+    
+    # Check if it's a rate limit error (429)
+    if exc.status_code == 429:
+        logger.warning(
+            "rate_limit_exceeded",
+            path=request.url.path,
+            client_ip=request.client.host if request.client else "unknown",
+            detail=str(exc.detail)
+        )
+        
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "message": "You've made too many requests. Please wait a moment before trying again.",
+                "limit": "20 requests per minute",
+                "retry_after_seconds": 60,
+                "tip": "Normal usage is 2-4 queries per minute. If you're testing, please slow down."
+            }
+        )
+    
+    # Not a rate limit error, return as-is
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
 
 
 # Global exception handler

@@ -4,8 +4,20 @@ Retrieves relevant document chunks for a given question with comprehensive loggi
 """
 
 import structlog
+import logging
 from typing import List, Optional
 from pinecone import Pinecone
+
+from pinecone.exceptions import PineconeException
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log
+)
+
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -153,6 +165,44 @@ class Retriever:
             )
             raise RuntimeError(f"Retriever initialization failed: {e}")
     
+
+    @retry(
+        stop=stop_after_attempt(3),  # Try up to 3 times
+        wait=wait_exponential(multiplier=1, min=2, max=10),  # Wait 2s, 4s, 8s
+        retry=retry_if_exception_type((
+            PineconeException,
+            ConnectionError,
+            TimeoutError
+        )),
+        before_sleep=before_sleep_log(logger, logging.WARNING)
+    )
+    def _retrieve_with_retry(self, retriever, question: str):
+        """
+        Retrieve nodes from Pinecone with automatic retry on transient failures.
+        
+        Retry strategy:
+        - Up to 3 attempts total
+        - Exponential backoff: 2s, 4s, 8s between retries
+        - Only retry on: Connection errors, timeouts, Pinecone exceptions
+        
+        Args:
+            retriever: LlamaIndex retriever object
+            question: Question to search for
+            
+        Returns:
+            List of retrieved nodes
+            
+        Raises:
+            Exception: If all retries fail
+        """
+        logger.debug("pinecone_retrieval_attempt", question=question)
+        
+        nodes = retriever.retrieve(question)
+        
+        logger.debug("pinecone_retrieval_successful", nodes_count=len(nodes) if nodes else 0)
+        
+        return nodes
+    
     def retrieve(self, request: QueryRequest) -> List[RetrievedChunk]:
         """
         Retrieve relevant chunks for a question using vector similarity search.
@@ -210,8 +260,8 @@ class Retriever:
                 similarity_top_k=request.top_k,
             )
             
-            # Retrieve nodes
-            nodes = retriever.retrieve(request.question)
+            # Retrieve nodes (with automatic retry on failures)
+            nodes = self._retrieve_with_retry(retriever, request.question)
             
             if not nodes:
                 logger.warning("retrieval_empty", message="No chunks retrieved")
