@@ -179,7 +179,59 @@ async def query(
             user_id=request.user_id
         )
         
-        # TODO: Log to Supabase here (Phase 3)
+        # Log to Supabase
+        try:
+            from src.database import get_supabase_logger
+            from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
+            
+            supabase_logger = get_supabase_logger()
+            
+            config = get_config()
+            
+            supabase_logger.log_query(
+                user_id=request.user_id,
+                question=original_question,
+                transformed_question=response.question if response.question != original_question else None,
+                answer=response.answer,
+                has_answer=response.has_answer,
+                response_time_seconds=response.response_time_seconds,
+                sources=[
+                    {
+                        "source": chunk.source,
+                        "category": chunk.category,
+                        "similarity_score": chunk.similarity_score,
+                    }
+                    for chunk in response.sources
+                ],
+                chunks_retrieved=len(response.sources),
+                client_ip=client_ip,
+                model=config.llm_model,
+                # Configuration parameters for A/B testing
+                config_top_k=request.top_k or config.query_top_k,
+                config_chunk_size=config.chunk_size,
+                config_chunk_overlap=config.chunk_overlap,
+                config_similarity_threshold=config.query_similarity_threshold,
+                config_temperature=config.llm_temperature,
+                config_max_tokens=config.llm_max_tokens,
+                config_embedding_model=config.embedding_model,
+                system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+                debug_info=debug_info if request.debug else None,
+            )
+            
+            logger.info(
+                "query_logged_to_supabase",
+                user_id=request.user_id,
+                system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION
+            )
+            
+        except Exception as e:
+            # Log error but don't crash the request
+            logger.error(
+                "supabase_logging_failed_in_endpoint",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user_id
+            )
         
         return api_response
         

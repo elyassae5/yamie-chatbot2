@@ -7,8 +7,10 @@ The system prompt is now in a separate file (system_prompt.py) for easy editing!
 
 from typing import List
 from src.query.models import RetrievedChunk
-from src.query.system_prompt import SYSTEM_PROMPT_SHORT as SYSTEM_PROMPT
-
+from src.query.system_prompt import (
+    ACTIVE_SYSTEM_PROMPT as SYSTEM_PROMPT,
+    ACTIVE_SYSTEM_PROMPT_VERSION as SYSTEM_PROMPT_VERSION
+)
 
 class PromptBuilder:
     """

@@ -72,6 +72,24 @@ class Config:
         print(f"  LLM model: {self.llm_model}")
 
 
+    def get_logging_config(self) -> dict:
+        """
+        Get configuration parameters for logging.
+        Used to track which settings were used for each query.
+        
+        Returns:
+            Dictionary with configuration values
+        """
+        return {
+            "config_top_k": self.query_top_k,
+            "config_chunk_size": self.chunk_size,
+            "config_chunk_overlap": self.chunk_overlap,
+            "config_similarity_threshold": self.query_similarity_threshold,
+            "config_temperature": self.llm_temperature,
+            "config_max_tokens": self.llm_max_tokens,
+            "config_embedding_model": self.embedding_model,
+        }
+
 def get_config() -> Config:
     config = Config()
     config.validate()
