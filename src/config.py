@@ -26,13 +26,13 @@ class Config:
     chunk_overlap: int = 150
 
     # Query/Retrieval Settings
-    query_top_k: int = 8                  # Number of chunks to retrieve
+    query_top_k: int = 9                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.0
     
     # LLM Settings
     llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
-    llm_temperature: float = 0.1            # Low = more factual, high = more creative
-    llm_max_tokens: int = 400               # Max response length
+    llm_temperature: float = 0.3            # Low = more factual, high = more creative
+    llm_max_tokens: int = 450               # Max response length
 
     # Redis Settings (for caching + conversation memory)
     redis_host: str = os.getenv("REDIS_HOST", "localhost")
@@ -47,7 +47,7 @@ class Config:
 
     # Memory Settings
     conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
-    max_conversation_turns: int = 5  # Remember last N Q&A pairs
+    max_conversation_turns: int = 3  # Remember last N Q&A pairs
 
      
     def validate(self):
