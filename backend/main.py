@@ -15,7 +15,7 @@ from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 
 from backend.config import get_backend_config
-from backend.routes import query, health
+from backend.routes import query, health, webhook
 from backend import __version__
 
 # Setup structured logging
@@ -126,6 +126,8 @@ if config.cors_enabled:
 # Include routers
 app.include_router(query.router, prefix="/api", tags=["Query"])
 app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(webhook.router, prefix="/api", tags=["WhatsApp"])
+
 
 logger.info(
     "routers_registered",
