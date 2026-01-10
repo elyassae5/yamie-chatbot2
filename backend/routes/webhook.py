@@ -89,10 +89,16 @@ async def whatsapp_webhook(request: Request):
         )
         
         # Create Twilio response
+        from fastapi.responses import Response as FastAPIResponse
+
         response = MessagingResponse()
         response.message(answer)
-        
-        return str(response)
+
+        # Return with explicit XML content type
+        return FastAPIResponse(
+            content=str(response),
+            media_type="application/xml"
+        )
         
     except Exception as e:
         logger.error(
