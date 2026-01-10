@@ -10,6 +10,53 @@ from twilio.twiml.messaging_response import MessagingResponse
 from src.query import QueryEngine
 from src.config import get_config
 
+
+def is_whitelisted(phone_number: str) -> bool:
+    """
+    Check if a phone number is whitelisted in Supabase.
+    
+    Args:
+        phone_number: Phone number in format "whatsapp:+31684365220"
+        
+    Returns:
+        True if whitelisted and active, False otherwise
+    """
+    try:
+        from src.database import get_supabase_logger
+        
+        supabase_logger = get_supabase_logger()
+        
+        # Query Supabase for this phone number
+        response = supabase_logger.client.table("whitelisted_numbers").select("*").eq("phone_number", phone_number).eq("is_active", True).execute()
+        
+        # Check if we got a result
+        if response.data and len(response.data) > 0:
+            logger.info(
+                "whitelist_check_passed",
+                phone_number=phone_number[:18] + "***",
+                user_name=response.data[0].get("name", "Unknown")
+            )
+            return True
+        else:
+            logger.warning(
+                "whitelist_check_failed",
+                phone_number=phone_number[:18] + "***",
+                reason="not_in_whitelist"
+            )
+            return False
+            
+    except Exception as e:
+        logger.error(
+            "whitelist_check_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            phone_number=phone_number[:18] + "***"
+        )
+        # Fail closed - if whitelist check fails, deny access
+        return False
+
+
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
@@ -59,6 +106,27 @@ async def whatsapp_webhook(request: Request):
             from_number=from_number[:18] + "***",  # Mask for privacy
             message_length=len(incoming_message)
         )
+
+        # ========== WHITELIST CHECK ==========
+        if not is_whitelisted(from_number):
+            logger.warning(
+                "unauthorized_access_attempt",
+                from_number=from_number[:18] + "***",
+                message=incoming_message[:70] + "..." if len(incoming_message) > 70 else incoming_message
+            )
+            
+            response = MessagingResponse()
+            response.message(
+                "Sorry, je bent niet geautoriseerd om deze service te gebruiken. "
+                "Neem contact op met je manager voor toegang."
+            )
+            
+            from fastapi.responses import Response as FastAPIResponse
+            return FastAPIResponse(
+                content=str(response),
+                media_type="application/xml"
+            )
+        # ========== END WHITELIST CHECK ==========
 
         
         # Validate message
