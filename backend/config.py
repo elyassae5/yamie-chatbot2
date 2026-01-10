@@ -30,7 +30,7 @@ class BackendConfig:
     
     # Supabase settings (for query logging)
     supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_key: str = os.getenv("SUPABASE_KEY", "")
+    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     
     # Logging
     log_queries: bool = True  # Log all queries to Supabase

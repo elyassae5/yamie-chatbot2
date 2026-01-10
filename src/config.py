@@ -40,6 +40,11 @@ class Config:
     redis_password: str = os.getenv("REDIS_PASSWORD", "")
     redis_db: int = 0  # Database number (0-15)
     
+    # Supabase Settings (for logging)
+    supabase_url: str = os.getenv("SUPABASE_URL", "")
+    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY", "")
+
     # Memory Settings
     conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
     max_conversation_turns: int = 5  # Remember last N Q&A pairs
