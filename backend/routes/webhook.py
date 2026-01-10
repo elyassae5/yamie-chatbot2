@@ -56,9 +56,10 @@ async def whatsapp_webhook(request: Request):
         
         logger.info(
             "whatsapp_message_received",
-            from_number=from_number[:15] + "***",  # Mask for privacy
+            from_number=from_number[:18] + "***",  # Mask for privacy
             message_length=len(incoming_message)
         )
+
         
         # Validate message
         if not incoming_message:
@@ -83,11 +84,58 @@ async def whatsapp_webhook(request: Request):
         
         logger.info(
             "query_processed",
-            from_number=from_number[:15] + "***",
+            from_number=from_number[:18] + "***",
             has_answer=query_response.has_answer,
             answer_length=len(answer)
         )
         
+        # ========== ADD SUPABASE LOGGING  ==========
+        try:
+            from src.database import get_supabase_logger
+            from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
+            from src.config import get_config
+            
+            supabase_logger = get_supabase_logger()
+            config = get_config()
+            
+            supabase_logger.log_query(
+                user_id=from_number,  # WhatsApp number as user_id
+                question=incoming_message,
+                answer=answer,
+                has_answer=query_response.has_answer,
+                response_time_seconds=query_response.response_time_seconds,
+                sources=[
+                    {
+                        "source": chunk.source,
+                        "category": chunk.category,
+                        "similarity_score": chunk.similarity_score,
+                    }
+                    for chunk in query_response.sources
+                ],
+                chunks_retrieved=len(query_response.sources),
+                client_ip="whatsapp_webhook",  # Indicate it came from WhatsApp
+                model=config.llm_model,
+                config_top_k=7,
+                config_chunk_size=config.chunk_size,
+                config_chunk_overlap=config.chunk_overlap,
+                config_similarity_threshold=config.query_similarity_threshold,
+                config_temperature=config.llm_temperature,
+                config_max_tokens=config.llm_max_tokens,
+                config_embedding_model=config.embedding_model,
+                system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+            )
+            
+            logger.info("whatsapp_query_logged_to_supabase", from_number=from_number[:15] + "***")
+            
+        except Exception as e:
+            # Don't crash if logging fails
+            logger.error(
+                "supabase_logging_failed_in_webhook",
+                error=str(e),
+                error_type=type(e).__name__
+            )
+        # ========== END SUPABASE LOGGING ==========
+
         # Create Twilio response
         from fastapi.responses import Response as FastAPIResponse
 
