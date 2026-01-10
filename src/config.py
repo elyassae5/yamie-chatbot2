@@ -46,19 +46,36 @@ class Config:
 
      
     def validate(self):
+        """Validate all configuration"""
         errors = []
-
+        
+        # Validate API keys (CRITICAL for production)
         if not self.openai_api_key:
             errors.append("OPENAI_API_KEY missing")
-
+        
         if not self.pinecone_api_key:
             errors.append("PINECONE_API_KEY missing")
-
-        if not Path(self.data_dir).exists():
-            errors.append(f"Data directory not found: {self.data_dir}")
-
+        
+        if not self.pinecone_index_name:
+            errors.append("PINECONE_INDEX_NAME missing")
+        
+        # Redis validation
+        if not self.redis_host:
+            errors.append("REDIS_HOST missing")
+        
+        if not self.redis_password:
+            errors.append("REDIS_PASSWORD missing")
+        
+        # Supabase validation
+        if not self.supabase_url:
+            errors.append("SUPABASE_URL missing")
+        
+        if not self.supabase_service_role_key:
+            errors.append("SUPABASE_SERVICE_ROLE_KEY missing")
+        
         if errors:
-            raise ValueError("Config errors:\n" + "\n".join(errors))
+            error_msg = "Config errors:\n" + "\n".join(errors)
+            raise ValueError(error_msg)
 
     def display(self):
         print("\n Config:")
