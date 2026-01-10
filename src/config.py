@@ -32,7 +32,7 @@ class Config:
     # LLM Settings
     llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
     llm_temperature: float = 0.1            # Low = more factual, high = more creative
-    llm_max_tokens: int = 400               # Max response length
+    llm_max_tokens: int = 250               # Max response length
 
     # Redis Settings (for caching + conversation memory)
     redis_host: str = os.getenv("REDIS_HOST", "localhost")
