@@ -134,89 +134,121 @@ async def whatsapp_webhook(request: Request):
             logger.warning("empty_message_received", from_number=from_number[:15] + "***")
             response = MessagingResponse()
             response.message("Hallo! Stel me een vraag over Yamie PastaBar.")
-            return str(response)
+            from fastapi.responses import Response as FastAPIResponse
+            return FastAPIResponse(
+                content=str(response),
+                media_type="application/xml"
+            )
         
-        # Process question using QueryEngine
+        # ========== PROCESS QUERY WITH ERROR HANDLING ==========
         logger.info("processing_query", from_number=from_number[:15] + "***")
         
-        query_response = engine.query(
-            question=incoming_message,
-            user_id=from_number,  # Use phone number as user_id for conversation memory
-            top_k=7
-        )
-        
-        # Format answer for WhatsApp (max 2200 chars to be safe)
-        answer = query_response.answer
-        if len(answer) > 2200:
-            answer = answer[:2200] + "\n\n[Antwoord ingekort - vraag voor meer details]"
-        
-        logger.info(
-            "query_processed",
-            from_number=from_number[:18] + "***",
-            has_answer=query_response.has_answer,
-            answer_length=len(answer)
-        )
-        
-        # ========== ADD SUPABASE LOGGING  ==========
         try:
-            from src.database import get_supabase_logger
-            from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
-            from src.config import get_config
-            
-            supabase_logger = get_supabase_logger()
-            config = get_config()
-            
-            supabase_logger.log_query(
-                user_id=from_number,  # WhatsApp number as user_id
+            # Process question using QueryEngine
+            query_response = engine.query(
                 question=incoming_message,
-                answer=answer,
+                user_id=from_number,  # Use phone number as user_id for conversation memory
+                top_k=7
+            )
+            
+            # Format answer for WhatsApp (max 2200 chars to be safe)
+            answer = query_response.answer
+            if len(answer) > 2200:
+                answer = answer[:2200] + "\n\n[Antwoord ingekort - vraag voor meer details]"
+            
+            logger.info(
+                "query_processed",
+                from_number=from_number[:18] + "***",
                 has_answer=query_response.has_answer,
-                response_time_seconds=query_response.response_time_seconds,
-                sources=[
-                    {
-                        "source": chunk.source,
-                        "category": chunk.category,
-                        "similarity_score": chunk.similarity_score,
-                    }
-                    for chunk in query_response.sources
-                ],
-                chunks_retrieved=len(query_response.sources),
-                client_ip="whatsapp_webhook",  # Indicate it came from WhatsApp
-                model=config.llm_model,
-                config_top_k=7,
-                config_chunk_size=config.chunk_size,
-                config_chunk_overlap=config.chunk_overlap,
-                config_similarity_threshold=config.query_similarity_threshold,
-                config_temperature=config.llm_temperature,
-                config_max_tokens=config.llm_max_tokens,
-                config_embedding_model=config.embedding_model,
-                system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+                answer_length=len(answer)
             )
             
-            logger.info("whatsapp_query_logged_to_supabase", from_number=from_number[:15] + "***")
-            
-        except Exception as e:
-            # Don't crash if logging fails
-            logger.error(
-                "supabase_logging_failed_in_webhook",
+            # ========== SUPABASE LOGGING ==========
+            try:
+                from src.database import get_supabase_logger
+                from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
+                from src.config import get_config
+                
+                supabase_logger = get_supabase_logger()
+                config = get_config()
+                
+                supabase_logger.log_query(
+                    user_id=from_number,  # WhatsApp number as user_id
+                    question=incoming_message,
+                    answer=answer,
+                    has_answer=query_response.has_answer,
+                    response_time_seconds=query_response.response_time_seconds,
+                    sources=[
+                        {
+                            "source": chunk.source,
+                            "category": chunk.category,
+                            "similarity_score": chunk.similarity_score,
+                        }
+                        for chunk in query_response.sources
+                    ],
+                    chunks_retrieved=len(query_response.sources),
+                    client_ip="whatsapp_webhook",  # Indicate it came from WhatsApp
+                    model=config.llm_model,
+                    config_top_k=7,
+                    config_chunk_size=config.chunk_size,
+                    config_chunk_overlap=config.chunk_overlap,
+                    config_similarity_threshold=config.query_similarity_threshold,
+                    config_temperature=config.llm_temperature,
+                    config_max_tokens=config.llm_max_tokens,
+                    config_embedding_model=config.embedding_model,
+                    system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+                )
+                
+                logger.info("whatsapp_query_logged_to_supabase", from_number=from_number[:15] + "***")
+                
+            except Exception as e:
+                # Don't crash if logging fails
+                logger.error(
+                    "supabase_logging_failed_in_webhook",
+                    error=str(e),
+                    error_type=type(e).__name__
+                )
+            # ========== END SUPABASE LOGGING ==========
+
+            # Create Twilio response
+            from fastapi.responses import Response as FastAPIResponse
+            response = MessagingResponse()
+            response.message(answer)
+            return FastAPIResponse(
+                content=str(response),
+                media_type="application/xml"
+            )
+        
+        except ValueError as e:
+            # Handle validation errors (like question too long)
+            logger.warning(
+                "invalid_question",
                 error=str(e),
-                error_type=type(e).__name__
+                from_number=from_number[:18] + "***"
             )
-        # ========== END SUPABASE LOGGING ==========
-
-        # Create Twilio response
-        from fastapi.responses import Response as FastAPIResponse
-
-        response = MessagingResponse()
-        response.message(answer)
-
-        # Return with explicit XML content type
-        return FastAPIResponse(
-            content=str(response),
-            media_type="application/xml"
-        )
+            
+            from fastapi.responses import Response as FastAPIResponse
+            response = MessagingResponse()
+            
+            if "too long" in str(e).lower():
+                response.message(
+                    "Sorry, je vraag is te lang (max 500 karakters). "
+                    "Stel een kortere, specifieke vraag."
+                )
+            else:
+                response.message(
+                    "Sorry, er is iets misgegaan met je vraag. "
+                    "Probeer het opnieuw."
+                )
+            
+            return FastAPIResponse(
+                content=str(response),
+                media_type="application/xml"
+            )
+        # ========== END QUERY PROCESSING ==========
         
     except Exception as e:
+        # Handle any other unexpected errors
         logger.error(
             "webhook_processing_failed",
             error=str(e),
@@ -224,6 +256,10 @@ async def whatsapp_webhook(request: Request):
         )
         
         # Send error message to user
+        from fastapi.responses import Response as FastAPIResponse
         response = MessagingResponse()
-        response.message("Sorry, er is een fout opgetreden. Probeer het later opnieuw.")
-        return str(response)
+        response.message("Sorry, er is een technische fout opgetreden. Probeer het later opnieuw.")
+        return FastAPIResponse(
+            content=str(response),
+            media_type="application/xml"
+        )
