@@ -128,6 +128,9 @@ async def whatsapp_webhook(request: Request):
             
             # Get the full URL (including query params if any)
             url = str(request.url)
+            # Force HTTPS if we're behind a proxy (Railway/production)
+            if url.startswith("http://"):
+                url = url.replace("http://", "https://", 1)
             
             # Get form data as dict
             form_data = await request.form()
