@@ -148,7 +148,6 @@ async def whatsapp_webhook(request: Request):
             query_response = engine.query(
                 question=incoming_message,
                 user_id=from_number,  # Use phone number as user_id for conversation memory
-                top_k=7
             )
             
             # Format answer for WhatsApp (max 2200 chars to be safe)
