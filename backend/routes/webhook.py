@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, HTTPException
 import structlog
 import os
 from twilio.twiml.messaging_response import MessagingResponse
+from twilio.rest import Client
 
 from src.query import QueryEngine
 from src.config import get_config
@@ -73,6 +74,21 @@ except Exception as e:
     )
     engine = None
 
+# Initialize Twilio client for sending typing indicators
+try:
+    twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    
+    if twilio_account_sid and twilio_auth_token:
+        twilio_client = Client(twilio_account_sid, twilio_auth_token)
+        logger.info("twilio_client_initialized", status="success")
+    else:
+        twilio_client = None
+        logger.warning("twilio_client_not_initialized", reason="missing_credentials")
+except Exception as e:
+    logger.error("twilio_client_initialization_failed", error=str(e))
+    twilio_client = None
+
 
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
@@ -127,6 +143,25 @@ async def whatsapp_webhook(request: Request):
                 media_type="application/xml"
             )
         # ========== END WHITELIST CHECK ==========
+
+
+        # ========== SEND TYPING INDICATOR ==========
+        if twilio_client:
+            try:
+                # Get Twilio phone number from environment
+                twilio_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+                
+                # Send typing indicator
+                twilio_client.messages.create(
+                    from_=twilio_number,
+                    to=from_number,
+                    body="typing..."  # Special Twilio command for typing indicator
+                )
+                logger.debug("typing_indicator_sent", to=from_number[:18] + "***")
+            except Exception as e:
+                # Don't crash if typing indicator fails
+                logger.warning("typing_indicator_failed", error=str(e))
+        # ========== END TYPING INDICATOR ==========
 
         
         # Validate message
