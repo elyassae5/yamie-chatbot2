@@ -181,26 +181,26 @@ async def whatsapp_webhook(request: Request):
             message_length=len(incoming_message)
         )
 
-        # ========== WHITELIST CHECK ==========
-        if not is_whitelisted(from_number):
-            logger.warning(
-                "unauthorized_access_attempt",
-                from_number=from_number[:18] + "***",
-                message=incoming_message[:70] + "..." if len(incoming_message) > 70 else incoming_message
-            )
+        # # ========== WHITELIST CHECK ==========
+        # if not is_whitelisted(from_number):
+        #     logger.warning(
+        #         "unauthorized_access_attempt",
+        #         from_number=from_number[:18] + "***",
+        #         message=incoming_message[:70] + "..." if len(incoming_message) > 70 else incoming_message
+        #     )
             
-            response = MessagingResponse()
-            response.message(
-                "Sorry, je bent niet geautoriseerd om deze service te gebruiken. "
-                "Neem contact op met je manager voor toegang."
-            )
+        #     response = MessagingResponse()
+        #     response.message(
+        #         "Sorry, je bent niet geautoriseerd om deze service te gebruiken. "
+        #         "Neem contact op met je manager voor toegang."
+        #     )
             
-            from fastapi.responses import Response as FastAPIResponse
-            return FastAPIResponse(
-                content=str(response),
-                media_type="application/xml"
-            )
-        # ========== END WHITELIST CHECK ==========
+        #     from fastapi.responses import Response as FastAPIResponse
+        #     return FastAPIResponse(
+        #         content=str(response),
+        #         media_type="application/xml"
+        #     )
+        # # ========== END WHITELIST CHECK ==========
 
 
         # ========== SEND ACKNOWLEDGMENT MESSAGE ==========
