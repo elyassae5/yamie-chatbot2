@@ -7,6 +7,7 @@ import structlog
 import os
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
+from twilio.request_validator import RequestValidator
 
 from src.query import QueryEngine
 from src.config import get_config
@@ -90,6 +91,21 @@ except Exception as e:
     twilio_client = None
 
 
+# Initialize Twilio Request Validator for signature verification
+try:
+    twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    
+    if twilio_auth_token:
+        request_validator = RequestValidator(twilio_auth_token)
+        logger.info("twilio_validator_initialized", status="success")
+    else:
+        request_validator = None
+        logger.warning("twilio_validator_not_initialized", reason="missing_auth_token")
+except Exception as e:
+    logger.error("twilio_validator_initialization_failed", error=str(e))
+    request_validator = None
+
+
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
     """
@@ -103,6 +119,44 @@ async def whatsapp_webhook(request: Request):
     2. Process the question using QueryEngine
     3. Send the answer back via Twilio
     """
+
+    # ========== TWILIO SIGNATURE VERIFICATION (SECURITY) ==========
+    if request_validator:
+        try:
+            # Get the signature from headers
+            signature = request.headers.get("X-Twilio-Signature", "")
+            
+            # Get the full URL (including query params if any)
+            url = str(request.url)
+            
+            # Get form data as dict
+            form_data = await request.form()
+            params = dict(form_data)
+            
+            # Validate signature
+            if not request_validator.validate(url, params, signature):
+                logger.error(
+                    "invalid_twilio_signature",
+                    url=url,
+                    has_signature=bool(signature)
+                )
+                raise HTTPException(status_code=403, detail="Invalid request signature")
+            
+            logger.debug("twilio_signature_verified", url=url)
+            
+        except HTTPException:
+            raise  # Re-raise the 403 error
+        except Exception as e:
+            logger.error(
+                "signature_verification_failed",
+                error=str(e),
+                error_type=type(e).__name__
+            )
+            raise HTTPException(status_code=403, detail="Signature verification failed")
+    else:
+        logger.warning("signature_verification_skipped", reason="validator_not_initialized")
+    # ========== END SIGNATURE VERIFICATION ==========
+
     
     # Check if engine is initialized
     if engine is None:
@@ -110,8 +164,9 @@ async def whatsapp_webhook(request: Request):
         return MessagingResponse()  # Empty response (no message sent)
     
     try:
-        # Get form data from Twilio
-        form_data = await request.form()
+        # Get form data from Twilio (if not already retrieved during signature check)
+        if 'form_data' not in locals():
+            form_data = await request.form()
         
         # Extract message details
         from_number = form_data.get("From", "")  # e.g., "whatsapp:+31612345678"
