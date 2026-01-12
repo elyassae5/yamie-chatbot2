@@ -145,23 +145,23 @@ async def whatsapp_webhook(request: Request):
         # ========== END WHITELIST CHECK ==========
 
 
-        # ========== SEND TYPING INDICATOR ==========
+        # ========== SEND ACKNOWLEDGMENT MESSAGE ==========
         if twilio_client:
             try:
                 # Get Twilio phone number from environment
                 twilio_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
                 
-                # Send typing indicator
+                # Send acknowledgment
                 twilio_client.messages.create(
                     from_=twilio_number,
                     to=from_number,
-                    body="typing..."  # Special Twilio command for typing indicator
+                    body="📄 Doorzoekt documenten..."  # "Searching for information..."
                 )
-                logger.debug("typing_indicator_sent", to=from_number[:18] + "***")
+                logger.debug("acknowledgment_sent", to=from_number[:18] + "***")
             except Exception as e:
-                # Don't crash if typing indicator fails
-                logger.warning("typing_indicator_failed", error=str(e))
-        # ========== END TYPING INDICATOR ==========
+                # Don't crash if acknowledgment fails
+                logger.warning("acknowledgment_failed", error=str(e))
+        # ========== END ACKNOWLEDGMENT MESSAGE ==========
 
         
         # Validate message
