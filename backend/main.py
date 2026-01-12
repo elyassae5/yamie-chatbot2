@@ -55,7 +55,9 @@ async def lifespan(app: FastAPI):
         redis_connection = redis.from_url(
             f"redis://:{src_config.redis_password}@{src_config.redis_host}:{src_config.redis_port}",
             encoding="utf-8",
-            decode_responses=True
+            decode_responses=True,
+            socket_connect_timeout=src_config.redis_timeout_seconds,
+            socket_timeout=src_config.redis_timeout_seconds
         )
         
         # Initialize FastAPILimiter

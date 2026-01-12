@@ -101,6 +101,7 @@ class Responder:
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            timeout=self.config.openai_timeout_seconds,
         )
         
         logger.debug("openai_api_call_successful")

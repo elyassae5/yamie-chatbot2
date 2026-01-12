@@ -26,13 +26,18 @@ class Config:
     chunk_overlap: int = 150
 
     # Query/Retrieval Settings
-    query_top_k: int = 9                  # Number of chunks to retrieve
+    query_top_k: int = 8                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.0
     
     # LLM Settings
     llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
     llm_max_tokens: int = 450               # Max response length
+
+     # Timeout configuration
+    openai_timeout_seconds: int = 30  # Max 30s for OpenAI API calls
+    pinecone_timeout_seconds: int = 10  # Max 10s for Pinecone queries
+    redis_timeout_seconds: int = 5  # Max 5s for Redis operations
 
     # Redis Settings (for caching + conversation memory)
     redis_host: str = os.getenv("REDIS_HOST", "localhost")
