@@ -213,7 +213,7 @@ async def whatsapp_webhook(request: Request):
                 twilio_client.messages.create(
                     from_=twilio_number,
                     to=from_number,
-                    body="📄 Doorzoekt documenten..."  # "Searching for information..."
+                    body="Denken..."  # "Searching for information..."
                 )
                 logger.debug("acknowledgment_sent", to=from_number[:18] + "***")
             except Exception as e:
