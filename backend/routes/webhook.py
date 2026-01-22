@@ -1,8 +1,17 @@
 """
 WhatsApp Webhook - Handles incoming WhatsApp messages via Twilio
+
+UPDATED: Now uses background processing to avoid Twilio's 15-second timeout.
+Flow:
+1. Receive message from Twilio
+2. Send "Denken..." acknowledgment
+3. Return empty response to Twilio immediately (prevents timeout)
+4. Process query in background
+5. Send answer as a NEW message via Twilio API
 """
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
+from fastapi.responses import Response as FastAPIResponse
 import structlog
 import os
 from twilio.twiml.messaging_response import MessagingResponse
@@ -75,7 +84,7 @@ except Exception as e:
     )
     engine = None
 
-# Initialize Twilio client for sending typing indicators
+# Initialize Twilio client for sending messages
 try:
     twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -106,18 +115,182 @@ except Exception as e:
     request_validator = None
 
 
+def send_whatsapp_message(to_number: str, message: str) -> bool:
+    """
+    Send a WhatsApp message via Twilio API.
+    
+    Args:
+        to_number: Recipient's WhatsApp number (e.g., "whatsapp:+31612345678")
+        message: Message text to send
+        
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    if not twilio_client:
+        logger.error("send_message_failed", reason="twilio_client_not_initialized")
+        return False
+    
+    try:
+        twilio_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+        
+        twilio_client.messages.create(
+            from_=twilio_number,
+            to=to_number,
+            body=message
+        )
+        
+        logger.info(
+            "whatsapp_message_sent",
+            to=to_number[:18] + "***",
+            message_length=len(message)
+        )
+        return True
+        
+    except Exception as e:
+        logger.error(
+            "send_whatsapp_message_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            to=to_number[:18] + "***"
+        )
+        return False
+
+
+def process_query_background(from_number: str, incoming_message: str):
+    """
+    Process a query in the background and send the response via Twilio.
+    
+    This function runs AFTER the webhook has already returned to Twilio,
+    so there's no timeout risk.
+    
+    Args:
+        from_number: User's WhatsApp number
+        incoming_message: The question they asked
+    """
+    logger.info(
+        "background_query_started",
+        from_number=from_number[:18] + "***",
+        question_length=len(incoming_message)
+    )
+    
+    try:
+        # Process question using QueryEngine
+        query_response = engine.query(
+            question=incoming_message,
+            user_id=from_number,  # Use phone number as user_id for conversation memory
+        )
+        
+        # Format answer for WhatsApp (max 1600 chars to be safe with Twilio)
+        answer = query_response.answer
+        if len(answer) > 1600:
+            answer = answer[:1600] + "\n\n[Antwoord ingekort - vraag voor meer details]"
+        
+        logger.info(
+            "background_query_completed",
+            from_number=from_number[:18] + "***",
+            has_answer=query_response.has_answer,
+            answer_length=len(answer),
+            response_time_seconds=round(query_response.response_time_seconds, 2)
+        )
+        
+        # Send the answer via Twilio
+        send_whatsapp_message(from_number, answer)
+        
+        # ========== SUPABASE LOGGING ==========
+        try:
+            from src.database import get_supabase_logger
+            from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
+            
+            supabase_logger = get_supabase_logger()
+            config = get_config()
+            
+            supabase_logger.log_query(
+                user_id=from_number,  # WhatsApp number as user_id
+                question=incoming_message,
+                answer=answer,
+                has_answer=query_response.has_answer,
+                response_time_seconds=query_response.response_time_seconds,
+                sources=[
+                    {
+                        "source": chunk.source,
+                        "category": chunk.category,
+                        "similarity_score": chunk.similarity_score,
+                    }
+                    for chunk in query_response.sources
+                ],
+                chunks_retrieved=len(query_response.sources),
+                client_ip="whatsapp_webhook_background",  # Indicate it came from background processing
+                model=config.llm_model,
+                config_top_k=config.query_top_k,
+                config_chunk_size=config.chunk_size,
+                config_chunk_overlap=config.chunk_overlap,
+                config_similarity_threshold=config.query_similarity_threshold,
+                config_temperature=config.llm_temperature,
+                config_max_tokens=config.llm_max_tokens,
+                config_embedding_model=config.embedding_model,
+                system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+            )
+            
+            logger.info("background_query_logged_to_supabase", from_number=from_number[:18] + "***")
+            
+        except Exception as e:
+            # Don't crash if logging fails
+            logger.error(
+                "supabase_logging_failed_in_background",
+                error=str(e),
+                error_type=type(e).__name__
+            )
+        # ========== END SUPABASE LOGGING ==========
+        
+    except ValueError as e:
+        # Handle validation errors (like question too long)
+        logger.warning(
+            "background_query_validation_error",
+            error=str(e),
+            from_number=from_number[:18] + "***"
+        )
+        
+        if "too long" in str(e).lower():
+            send_whatsapp_message(
+                from_number,
+                "Sorry, je vraag is te lang (max 500 karakters). Stel een kortere, specifieke vraag."
+            )
+        else:
+            send_whatsapp_message(
+                from_number,
+                "Sorry, er is iets misgegaan met je vraag. Probeer het opnieuw."
+            )
+            
+    except Exception as e:
+        # Handle any other unexpected errors
+        logger.error(
+            "background_query_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            from_number=from_number[:18] + "***"
+        )
+        
+        # Send error message to user
+        send_whatsapp_message(
+            from_number,
+            "Sorry, er is een technische fout opgetreden. Probeer het later opnieuw."
+        )
+
+
 @router.post("/webhook/whatsapp")
-async def whatsapp_webhook(request: Request):
+async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Receive incoming WhatsApp messages from Twilio.
     
-    When a user sends a WhatsApp message to your Twilio number,
-    Twilio forwards it here as a POST request.
+    IMPORTANT: This endpoint returns IMMEDIATELY after receiving the message.
+    The actual query processing happens in a background task.
     
-    We then:
-    1. Extract the message and sender's phone number
-    2. Process the question using QueryEngine
-    3. Send the answer back via Twilio
+    Flow:
+    1. Validate Twilio signature
+    2. Extract message details
+    3. Send "Denken..." acknowledgment
+    4. Schedule background task to process query
+    5. Return empty response to Twilio (prevents 15-second timeout)
     """
 
     # ========== TWILIO SIGNATURE VERIFICATION (SECURITY) ==========
@@ -158,19 +331,24 @@ async def whatsapp_webhook(request: Request):
             raise HTTPException(status_code=403, detail="Signature verification failed")
     else:
         logger.warning("signature_verification_skipped", reason="validator_not_initialized")
+        # Still need to get form_data if we skipped signature verification
+        form_data = await request.form()
     # ========== END SIGNATURE VERIFICATION ==========
 
     
     # Check if engine is initialized
     if engine is None:
         logger.error("webhook_rejected", reason="engine_not_initialized")
-        return MessagingResponse()  # Empty response (no message sent)
+        return FastAPIResponse(content=str(MessagingResponse()), media_type="application/xml")
+    
+    # Check if Twilio client is available (required for background processing)
+    if twilio_client is None:
+        logger.error("webhook_rejected", reason="twilio_client_not_initialized")
+        response = MessagingResponse()
+        response.message("Sorry, de service is tijdelijk niet beschikbaar. Probeer het later opnieuw.")
+        return FastAPIResponse(content=str(response), media_type="application/xml")
     
     try:
-        # Get form data from Twilio (if not already retrieved during signature check)
-        if 'form_data' not in locals():
-            form_data = await request.form()
-        
         # Extract message details
         from_number = form_data.get("From", "")  # e.g., "whatsapp:+31612345678"
         incoming_message = form_data.get("Body", "").strip()
@@ -188,156 +366,53 @@ async def whatsapp_webhook(request: Request):
         #         from_number=from_number[:18] + "***",
         #         message=incoming_message[:70] + "..." if len(incoming_message) > 70 else incoming_message
         #     )
-            
+        #     
         #     response = MessagingResponse()
         #     response.message(
         #         "Sorry, je bent niet geautoriseerd om deze service te gebruiken. "
         #         "Neem contact op met je manager voor toegang."
         #     )
-            
-        #     from fastapi.responses import Response as FastAPIResponse
-        #     return FastAPIResponse(
-        #         content=str(response),
-        #         media_type="application/xml"
-        #     )
+        #     return FastAPIResponse(content=str(response), media_type="application/xml")
         # # ========== END WHITELIST CHECK ==========
 
-
-        # ========== SEND ACKNOWLEDGMENT MESSAGE ==========
-        if twilio_client:
-            try:
-                # Get Twilio phone number from environment
-                twilio_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
-                
-                # Send acknowledgment
-                twilio_client.messages.create(
-                    from_=twilio_number,
-                    to=from_number,
-                    body="Denken..."  # "Searching for information..."
-                )
-                logger.debug("acknowledgment_sent", to=from_number[:18] + "***")
-            except Exception as e:
-                # Don't crash if acknowledgment fails
-                logger.warning("acknowledgment_failed", error=str(e))
-        # ========== END ACKNOWLEDGMENT MESSAGE ==========
-
         
-        # Validate message
+        # Handle empty message
         if not incoming_message:
-            logger.warning("empty_message_received", from_number=from_number[:15] + "***")
+            logger.warning("empty_message_received", from_number=from_number[:18] + "***")
             response = MessagingResponse()
             response.message("Hallo! Stel me een vraag over Yamie PastaBar.")
-            from fastapi.responses import Response as FastAPIResponse
-            return FastAPIResponse(
-                content=str(response),
-                media_type="application/xml"
-            )
+            return FastAPIResponse(content=str(response), media_type="application/xml")
         
-        # ========== PROCESS QUERY WITH ERROR HANDLING ==========
-        logger.info("processing_query", from_number=from_number[:15] + "***")
+        # ========== SEND ACKNOWLEDGMENT & SCHEDULE BACKGROUND TASK ==========
         
+        # Send "Denken..." acknowledgment immediately
         try:
-            # Process question using QueryEngine
-            query_response = engine.query(
-                question=incoming_message,
-                user_id=from_number,  # Use phone number as user_id for conversation memory
-            )
-            
-            # Format answer for WhatsApp (max 2200 chars to be safe)
-            answer = query_response.answer
-            if len(answer) > 2200:
-                answer = answer[:2200] + "\n\n[Antwoord ingekort - vraag voor meer details]"
-            
-            logger.info(
-                "query_processed",
-                from_number=from_number[:18] + "***",
-                has_answer=query_response.has_answer,
-                answer_length=len(answer)
-            )
-            
-            # ========== SUPABASE LOGGING ==========
-            try:
-                from src.database import get_supabase_logger
-                from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
-                from src.config import get_config
-                
-                supabase_logger = get_supabase_logger()
-                config = get_config()
-                
-                supabase_logger.log_query(
-                    user_id=from_number,  # WhatsApp number as user_id
-                    question=incoming_message,
-                    answer=answer,
-                    has_answer=query_response.has_answer,
-                    response_time_seconds=query_response.response_time_seconds,
-                    sources=[
-                        {
-                            "source": chunk.source,
-                            "category": chunk.category,
-                            "similarity_score": chunk.similarity_score,
-                        }
-                        for chunk in query_response.sources
-                    ],
-                    chunks_retrieved=len(query_response.sources),
-                    client_ip="whatsapp_webhook",  # Indicate it came from WhatsApp
-                    model=config.llm_model,
-                    config_top_k=7,
-                    config_chunk_size=config.chunk_size,
-                    config_chunk_overlap=config.chunk_overlap,
-                    config_similarity_threshold=config.query_similarity_threshold,
-                    config_temperature=config.llm_temperature,
-                    config_max_tokens=config.llm_max_tokens,
-                    config_embedding_model=config.embedding_model,
-                    system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
-                )
-                
-                logger.info("whatsapp_query_logged_to_supabase", from_number=from_number[:15] + "***")
-                
-            except Exception as e:
-                # Don't crash if logging fails
-                logger.error(
-                    "supabase_logging_failed_in_webhook",
-                    error=str(e),
-                    error_type=type(e).__name__
-                )
-            # ========== END SUPABASE LOGGING ==========
-
-            # Create Twilio response
-            from fastapi.responses import Response as FastAPIResponse
-            response = MessagingResponse()
-            response.message(answer)
-            return FastAPIResponse(
-                content=str(response),
-                media_type="application/xml"
-            )
+            send_whatsapp_message(from_number, "🤔 Denken...")
+            logger.debug("acknowledgment_sent", to=from_number[:18] + "***")
+        except Exception as e:
+            logger.warning("acknowledgment_failed", error=str(e))
+            # Continue anyway - the answer will still be sent
         
-        except ValueError as e:
-            # Handle validation errors (like question too long)
-            logger.warning(
-                "invalid_question",
-                error=str(e),
-                from_number=from_number[:18] + "***"
-            )
-            
-            from fastapi.responses import Response as FastAPIResponse
-            response = MessagingResponse()
-            
-            if "too long" in str(e).lower():
-                response.message(
-                    "Sorry, je vraag is te lang (max 500 karakters). "
-                    "Stel een kortere, specifieke vraag."
-                )
-            else:
-                response.message(
-                    "Sorry, er is iets misgegaan met je vraag. "
-                    "Probeer het opnieuw."
-                )
-            
-            return FastAPIResponse(
-                content=str(response),
-                media_type="application/xml"
-            )
-        # ========== END QUERY PROCESSING ==========
+        # Schedule the query processing as a background task
+        background_tasks.add_task(
+            process_query_background,
+            from_number,
+            incoming_message
+        )
+        
+        logger.info(
+            "background_task_scheduled",
+            from_number=from_number[:18] + "***",
+            question_length=len(incoming_message)
+        )
+        
+        # Return empty response to Twilio immediately
+        # This prevents the 15-second timeout!
+        return FastAPIResponse(
+            content=str(MessagingResponse()),
+            media_type="application/xml"
+        )
+        # ========== END BACKGROUND PROCESSING ==========
         
     except Exception as e:
         # Handle any other unexpected errors
@@ -348,10 +423,6 @@ async def whatsapp_webhook(request: Request):
         )
         
         # Send error message to user
-        from fastapi.responses import Response as FastAPIResponse
         response = MessagingResponse()
         response.message("Sorry, er is een technische fout opgetreden. Probeer het later opnieuw.")
-        return FastAPIResponse(
-            content=str(response),
-            media_type="application/xml"
-        )
+        return FastAPIResponse(content=str(response), media_type="application/xml")
