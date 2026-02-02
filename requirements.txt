@@ -28,3 +28,7 @@ fastapi-limiter
 tenacity
 
 twilio
+
+llama-index-readers-notion
+
+pypdf
