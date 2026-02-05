@@ -1,0 +1,150 @@
+{
+  "timestamp": "2026-02-05T16:54:52.243827",
+  "question": "dus ik zou graag op visite willen gaan naar een ander fililaal, kan dat zomaar of moet ik iets ergens aan dnekne hiervoor?",
+  "config": {
+    "index": "yamie-knowledge",
+    "namespaces": [
+      "operations-department"
+    ],
+    "top_k": 8,
+    "similarity_threshold": 0.0,
+    "embedding_model": "text-embedding-3-large"
+  },
+  "results": {
+    "chunks_retrieved": 8,
+    "unique_sources": 3,
+    "average_similarity": 0.477958720125,
+    "sources": [
+      "Operations Department/Proces: Omgaan met uitverkochte producten",
+      "Operations Department/Proces - Telefonische Bereikbaarheid & Opnamecontrole Franchisezaken",
+      "Operations Department/Bezoek franchisenemer aan ander filiaal"
+    ]
+  },
+  "chunks": [
+    {
+      "rank": 1,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.521949828,
+      "category": "general",
+      "text": "Doel\nHet faciliteren van leerzame bezoeken tussen franchisenemers, waarbij kennis wordt gedeeld over bedrijfsvoering, het combineren van meerdere concepten, management en succesfactoren (zoals hoge omzet of goede reviews). Dit gebeurt op een gestructureerde, respectvolle manier zonder de operatie van het ontvangende filiaal te verstoren.\n\n# 1. Initiatief en intake\n\nWanneer een franchisenemer aangeeft een ander filiaal te willen bezoeken:\n• Het verzoek wordt aangehoord.\n• Er wordt gevraagd naar:\n• De reden van het bezoek\n• Het doel (bijv. operationele werkwijze, teamstructuur, conceptcombinatie, klantbeleving)\n• Er wordt duidelijk aangegeven dat een bezoek altijd in overleg plaatsvindt en geen automatisch recht is.\n\n# 2. Interne afstemming\n\n• Het verzoek wordt besproken binnen de franchiseorganisatie.\n• Er wordt beoordeeld of het doel van het bezoek:\n• Relevant is\n• Passend is voor kennisdeling\n• Geen risico vormt voor vertrouwelijke of concurrentiegevoelige informatie\n\n# 3. Afstemming met ontvangend filiaal\n\n• De franchiseorganisatie neemt als eerste contact op met het filiaal dat bezocht zou worden.",
+      "text_length": 1117,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 2,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.509641707,
+      "category": "general",
+      "text": "• De vorm van waardering wordt vooraf afgestemd, bijvoorbeeld:\n• Financiële vergoeding\n• Tegoed of bonus\n• Andere passende erkenning vanuit de franchiseorganisatie\n\n# 9. Afronding en opvolging\n\n• Na afloop:\n• Bedankt de franchiseorganisatie het ontvangende filiaal expliciet voor de medewerking.\n• Optioneel:\n• Korte evaluatie met beide partijen\n• Delen van algemene learnings binnen het netwerk (zonder gevoelige details)\n\n# 10. Aanvullende richtlijnen \n\n• Maximale frequentie:\nEen filiaal kan maximaal een vastgesteld aantal bezoeken per maand ontvangen om overbelasting te voorkomen.\n• Gelijke verdeling:\nSuccesvolle filialen worden niet structureel vaker belast dan andere filialen.\n• Vertrouwelijkheid:\nAlle gedeelde informatie blijft binnen het franchisenetwerk en wordt niet extern gebruikt.\n• Centrale coördinatie:\nAlle aanvragen en bezoeken lopen via de franchiseorganisatie, niet rechtstreeks tussen franchisenemers.\n• Beoordelingsrecht:\nDe franchiseorganisatie behoudt het recht om verzoeken af te wijzen of uit te stellen.",
+      "text_length": 1034,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 3,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.506320953,
+      "category": "general",
+      "text": "Voorwaarden aanwezigheid franchiseorganisatie\n\n• Tijdens het bezoek is altijd een operational manager vanuit de franchiseorganisatie aanwezig.\n• De rol van de operational manager is:\n• Het geven van context en uitleg\n• Het bewaken van grenzen en focus\n• Het begeleiden van het gesprek\n• Het voorkomen van misinterpretaties\n\n# 5. Planning en bevestiging\n\n• Na akkoord van het ontvangende filiaal:\n• Wordt een datum vastgesteld\n• Wordt de bezoekende franchisenemer geïnformeerd\n• Richtlijn planning:\n• Minimaal 3 dagen van tevoren\n• Bij voorkeur langer, afhankelijk van de agenda van het ontvangende filiaal\n• Er wordt vooraf duidelijk gecommuniceerd over:\n• Duur van het bezoek (richtlijn: 1–2 uur)\n• Wat wel en niet onderdeel is van het bezoek\n\n# 6.",
+      "text_length": 749,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 4,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.499668151,
+      "category": "general",
+      "text": "Planning en bevestiging\n\n• Na akkoord van het ontvangende filiaal:\n• Wordt een datum vastgesteld\n• Wordt de bezoekende franchisenemer geïnformeerd\n• Richtlijn planning:\n• Minimaal 3 dagen van tevoren\n• Bij voorkeur langer, afhankelijk van de agenda van het ontvangende filiaal\n• Er wordt vooraf duidelijk gecommuniceerd over:\n• Duur van het bezoek (richtlijn: 1–2 uur)\n• Wat wel en niet onderdeel is van het bezoek\n\n# 6. Briefing ontvangend filiaal\n\nHet ontvangende filiaal ontvangt vooraf een korte briefing met daarin:\n• Zorg voor een:\n• Schone en representatieve zaak\n• Voldoende bezetting, zodat de operatie niet onder druk komt te staan\n• Aanwezigheid van:\n• De franchisenemer\n• De operational manager\n• Duidelijkheid over:\n• Welke onderwerpen besproken worden\n• Dat het delen van vertrouwelijke informatie niet verplicht is\n\n# 7. Gedrag en spelregels tijdens het bezoek\n\n• Het bezoek is observerend en lerend, niet controlerend.",
+      "text_length": 934,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 5,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.498462737,
+      "category": "general",
+      "text": "# 2. Interne afstemming\n\n• Het verzoek wordt besproken binnen de franchiseorganisatie.\n• Er wordt beoordeeld of het doel van het bezoek:\n• Relevant is\n• Passend is voor kennisdeling\n• Geen risico vormt voor vertrouwelijke of concurrentiegevoelige informatie\n\n# 3. Afstemming met ontvangend filiaal\n\n• De franchiseorganisatie neemt als eerste contact op met het filiaal dat bezocht zou worden.\n• Hierbij wordt duidelijke context gegeven:\n• Welke franchisenemer wil langskomen\n• Wat de reden en het doel van het bezoek zijn\n• Gewenste datum, tijd en duur\n• Het ontvangende filiaal kan:\n• Akkoord gaan\n• Voorwaarden stellen\n• Of het verzoek weigeren zonder verdere verplichting\n\n# 4. Voorwaarden aanwezigheid franchiseorganisatie\n\n• Tijdens het bezoek is altijd een operational manager vanuit de franchiseorganisatie aanwezig.\n• De rol van de operational manager is:\n• Het geven van context en uitleg\n• Het bewaken van grenzen en focus\n• Het begeleiden van het gesprek\n• Het voorkomen van misinterpretaties\n\n# 5.",
+      "text_length": 1009,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 6,
+      "source_path": "Operations Department/Bezoek franchisenemer aan ander filiaal",
+      "similarity_score": 0.47456938,
+      "category": "general",
+      "text": "Gedrag en spelregels tijdens het bezoek\n\n• Het bezoek is observerend en lerend, niet controlerend.\n• Niet toegestaan zonder toestemming:\n• Foto’s of video’s maken\n• Medewerkers aanspreken of aansturen\n• Ingrijpen in processen\n• Respect voor:\n• Drukte in de zaak\n• De grenzen van het ontvangende filiaal\n• De dagelijkse operatie\n\n# 8. Vergoeding en waardering\n\n• Het ontvangen van een andere franchisenemer is geen vanzelfsprekendheid.\n• De ontvangende franchisenemer wordt gecompenseerd voor tijd en inspanning.\n• De vorm van waardering wordt vooraf afgestemd, bijvoorbeeld:\n• Financiële vergoeding\n• Tegoed of bonus\n• Andere passende erkenning vanuit de franchiseorganisatie\n\n# 9. Afronding en opvolging\n\n• Na afloop:\n• Bedankt de franchiseorganisatie het ontvangende filiaal expliciet voor de medewerking.\n• Optioneel:\n• Korte evaluatie met beide partijen\n• Delen van algemene learnings binnen het netwerk (zonder gevoelige details)\n\n# 10.",
+      "text_length": 941,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Bezoek franchisenemer aan ander filiaal",
+        "page_id": "2f14b2c6-b052-802f-a2ca-fb614c201db6",
+        "page_url": "https://www.notion.so/Bezoek-franchisenemer-aan-ander-filiaal-2f14b2c6b052802fa2cafb614c201db6"
+      }
+    },
+    {
+      "rank": 7,
+      "source_path": "Operations Department/Proces: Omgaan met uitverkochte producten",
+      "similarity_score": 0.409168273,
+      "category": "general",
+      "text": "⸻\nStap 2: Oplossingen (in volgorde van voorkeur)\nOptie 1: Zelf afhalen bij de groothandel (voorkeur)\n•\tLocatie groothandel\nOceanenweg 5A\n1047 BA Amsterdam (Sloterdijk)\n•\tTijden\nAlleen maandag t/m vrijdag\n•\tVerplicht vooraf\nApp sturen naar Adam:\n📱 +31 6 84 37 87 84\n(altijd eerst contact, niet onaangekondigd komen)\n✅ Dit is de snelste en meest correcte oplossing.\n⸻\nOptie 2: In overleg product halen bij collega-filiaal\nAlleen toegestaan:\n•\tNa overleg met hoofdkantoor\n•\tAls groothandel geen optie is (bijv. te ver, tijdsdruk)\nVoorwaarden:\n•\tProduct exact hetzelfde (geen alternatief)\n•\tDuidelijke afspraak over:\n•\tTerugbrengen zodra eigen levering binnen is\nof\n•\tGroothandel laten leveren en kosten zelf betalen\n•\tCorrect registreren wat is meegenomen\n⚠️ Wees hier streng en netjes in. Dit is tijdelijk en uitzonderlijk.",
+      "text_length": 821,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Proces: Omgaan met uitverkochte producten",
+        "page_id": "2fc4b2c6-b052-80ed-bdfd-dad09f1e615d",
+        "page_url": "https://www.notion.so/Proces-Omgaan-met-uitverkochte-producten-2fc4b2c6b05280edbdfddad09f1e615d"
+      }
+    },
+    {
+      "rank": 8,
+      "source_path": "Operations Department/Proces - Telefonische Bereikbaarheid & Opnamecontrole Franchisezaken",
+      "similarity_score": 0.403888732,
+      "category": "general",
+      "text": "Belprocedure (zeer belangrijk: zo doen)\n2.1 Belmoment\n•\tAlleen tijdens openingstijden\n•\tLiefst tijdens een normaal druk moment (geen daluren)\n⸻\n2.2 Belregels\nPer zaak geldt:\n1.\tBel 1 keer\n2.\tWordt er niet opgenomen binnen ±30 seconden:\n•\tHang op\n•\tBel na 1–2 minuten opnieuw\n3.\tWordt er dan nog steeds niet opgenomen:\n•\tStop → dit is al waardevolle informatie\n❗ Je hoeft geen gesprek te voeren\n❗ Je mag direct ophangen zodra er wordt opgenomen\nHet gaat puur om:\n•\tBereikbaarheid\n•\tEerste indruk\n⸻\n3. Waar letten we op?",
+      "text_length": 518,
+      "metadata": {
+        "namespace": "operations-department",
+        "source_type": "notion_page",
+        "page_title": "Proces - Telefonische Bereikbaarheid & Opnamecontrole Franchisezaken",
+        "page_id": "2fc4b2c6-b052-800f-8b5c-c9893a613859",
+        "page_url": "https://www.notion.so/Proces-Telefonische-Bereikbaarheid-Opnamecontrole-Franchisezaken-2fc4b2c6b052800f8b5cc9893a613859"
+      }
+    }
+  ],
+  "context_for_llm": {
+    "total_chars": 7779,
+    "estimated_tokens": 1509,
+    "text": "[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\nDoel\nHet faciliteren van leerzame bezoeken tussen franchisenemers, waarbij kennis wordt gedeeld over bedrijfsvoering, het combineren van meerdere concepten, management en succesfactoren (zoals hoge omzet of goede reviews). Dit gebeurt op een gestructureerde, respectvolle manier zonder de operatie van het ontvangende filiaal te verstoren.\n\n# 1. Initiatief en intake\n\nWanneer een franchisenemer aangeeft een ander filiaal te willen bezoeken:\n• Het verzoek wordt aangehoord.\n• Er wordt gevraagd naar:\n• De reden van het bezoek\n• Het doel (bijv. operationele werkwijze, teamstructuur, conceptcombinatie, klantbeleving)\n• Er wordt duidelijk aangegeven dat een bezoek altijd in overleg plaatsvindt en geen automatisch recht is.\n\n# 2. Interne afstemming\n\n• Het verzoek wordt besproken binnen de franchiseorganisatie.\n• Er wordt beoordeeld of het doel van het bezoek:\n• Relevant is\n• Passend is voor kennisdeling\n• Geen risico vormt voor vertrouwelijke of concurrentiegevoelige informatie\n\n# 3. Afstemming met ontvangend filiaal\n\n• De franchiseorganisatie neemt als eerste contact op met het filiaal dat bezocht zou worden.\n\n---\n\n[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\n• De vorm van waardering wordt vooraf afgestemd, bijvoorbeeld:\n• Financiële vergoeding\n• Tegoed of bonus\n• Andere passende erkenning vanuit de franchiseorganisatie\n\n# 9. Afronding en opvolging\n\n• Na afloop:\n• Bedankt de franchiseorganisatie het ontvangende filiaal expliciet voor de medewerking.\n• Optioneel:\n• Korte evaluatie met beide partijen\n• Delen van algemene learnings binnen het netwerk (zonder gevoelige details)\n\n# 10. Aanvullende richtlijnen \n\n• Maximale frequentie:\nEen filiaal kan maximaal een vastgesteld aantal bezoeken per maand ontvangen om overbelasting te voorkomen.\n• Gelijke verdeling:\nSuccesvolle filialen worden niet structureel vaker belast dan andere filialen.\n• Vertrouwelijkheid:\nAlle gedeelde informatie blijft binnen het franchisenetwerk en wordt niet extern gebruikt.\n• Centrale coördinatie:\nAlle aanvragen en bezoeken lopen via de franchiseorganisatie, niet rechtstreeks tussen franchisenemers.\n• Beoordelingsrecht:\nDe franchiseorganisatie behoudt het recht om verzoeken af te wijzen of uit te stellen.\n\n---\n\n[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\nVoorwaarden aanwezigheid franchiseorganisatie\n\n• Tijdens het bezoek is altijd een operational manager vanuit de franchiseorganisatie aanwezig.\n• De rol van de operational manager is:\n• Het geven van context en uitleg\n• Het bewaken van grenzen en focus\n• Het begeleiden van het gesprek\n• Het voorkomen van misinterpretaties\n\n# 5. Planning en bevestiging\n\n• Na akkoord van het ontvangende filiaal:\n• Wordt een datum vastgesteld\n• Wordt de bezoekende franchisenemer geïnformeerd\n• Richtlijn planning:\n• Minimaal 3 dagen van tevoren\n• Bij voorkeur langer, afhankelijk van de agenda van het ontvangende filiaal\n• Er wordt vooraf duidelijk gecommuniceerd over:\n• Duur van het bezoek (richtlijn: 1–2 uur)\n• Wat wel en niet onderdeel is van het bezoek\n\n# 6.\n\n---\n\n[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\nPlanning en bevestiging\n\n• Na akkoord van het ontvangende filiaal:\n• Wordt een datum vastgesteld\n• Wordt de bezoekende franchisenemer geïnformeerd\n• Richtlijn planning:\n• Minimaal 3 dagen van tevoren\n• Bij voorkeur langer, afhankelijk van de agenda van het ontvangende filiaal\n• Er wordt vooraf duidelijk gecommuniceerd over:\n• Duur van het bezoek (richtlijn: 1–2 uur)\n• Wat wel en niet onderdeel is van het bezoek\n\n# 6. Briefing ontvangend filiaal\n\nHet ontvangende filiaal ontvangt vooraf een korte briefing met daarin:\n• Zorg voor een:\n• Schone en representatieve zaak\n• Voldoende bezetting, zodat de operatie niet onder druk komt te staan\n• Aanwezigheid van:\n• De franchisenemer\n• De operational manager\n• Duidelijkheid over:\n• Welke onderwerpen besproken worden\n• Dat het delen van vertrouwelijke informatie niet verplicht is\n\n# 7. Gedrag en spelregels tijdens het bezoek\n\n• Het bezoek is observerend en lerend, niet controlerend.\n\n---\n\n[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\n# 2. Interne afstemming\n\n• Het verzoek wordt besproken binnen de franchiseorganisatie.\n• Er wordt beoordeeld of het doel van het bezoek:\n• Relevant is\n• Passend is voor kennisdeling\n• Geen risico vormt voor vertrouwelijke of concurrentiegevoelige informatie\n\n# 3. Afstemming met ontvangend filiaal\n\n• De franchiseorganisatie neemt als eerste contact op met het filiaal dat bezocht zou worden.\n• Hierbij wordt duidelijke context gegeven:\n• Welke franchisenemer wil langskomen\n• Wat de reden en het doel van het bezoek zijn\n• Gewenste datum, tijd en duur\n• Het ontvangende filiaal kan:\n• Akkoord gaan\n• Voorwaarden stellen\n• Of het verzoek weigeren zonder verdere verplichting\n\n# 4. Voorwaarden aanwezigheid franchiseorganisatie\n\n• Tijdens het bezoek is altijd een operational manager vanuit de franchiseorganisatie aanwezig.\n• De rol van de operational manager is:\n• Het geven van context en uitleg\n• Het bewaken van grenzen en focus\n• Het begeleiden van het gesprek\n• Het voorkomen van misinterpretaties\n\n# 5.\n\n---\n\n[Source: Operations Department/Bezoek franchisenemer aan ander filiaal]\nGedrag en spelregels tijdens het bezoek\n\n• Het bezoek is observerend en lerend, niet controlerend.\n• Niet toegestaan zonder toestemming:\n• Foto’s of video’s maken\n• Medewerkers aanspreken of aansturen\n• Ingrijpen in processen\n• Respect voor:\n• Drukte in de zaak\n• De grenzen van het ontvangende filiaal\n• De dagelijkse operatie\n\n# 8. Vergoeding en waardering\n\n• Het ontvangen van een andere franchisenemer is geen vanzelfsprekendheid.\n• De ontvangende franchisenemer wordt gecompenseerd voor tijd en inspanning.\n• De vorm van waardering wordt vooraf afgestemd, bijvoorbeeld:\n• Financiële vergoeding\n• Tegoed of bonus\n• Andere passende erkenning vanuit de franchiseorganisatie\n\n# 9. Afronding en opvolging\n\n• Na afloop:\n• Bedankt de franchiseorganisatie het ontvangende filiaal expliciet voor de medewerking.\n• Optioneel:\n• Korte evaluatie met beide partijen\n• Delen van algemene learnings binnen het netwerk (zonder gevoelige details)\n\n# 10.\n\n---\n\n[Source: Operations Department/Proces: Omgaan met uitverkochte producten]\n⸻\nStap 2: Oplossingen (in volgorde van voorkeur)\nOptie 1: Zelf afhalen bij de groothandel (voorkeur)\n•\tLocatie groothandel\nOceanenweg 5A\n1047 BA Amsterdam (Sloterdijk)\n•\tTijden\nAlleen maandag t/m vrijdag\n•\tVerplicht vooraf\nApp sturen naar Adam:\n📱 +31 6 84 37 87 84\n(altijd eerst contact, niet onaangekondigd komen)\n✅ Dit is de snelste en meest correcte oplossing.\n⸻\nOptie 2: In overleg product halen bij collega-filiaal\nAlleen toegestaan:\n•\tNa overleg met hoofdkantoor\n•\tAls groothandel geen optie is (bijv. te ver, tijdsdruk)\nVoorwaarden:\n•\tProduct exact hetzelfde (geen alternatief)\n•\tDuidelijke afspraak over:\n•\tTerugbrengen zodra eigen levering binnen is\nof\n•\tGroothandel laten leveren en kosten zelf betalen\n•\tCorrect registreren wat is meegenomen\n⚠️ Wees hier streng en netjes in. Dit is tijdelijk en uitzonderlijk.\n\n---\n\n[Source: Operations Department/Proces - Telefonische Bereikbaarheid & Opnamecontrole Franchisezaken]\nBelprocedure (zeer belangrijk: zo doen)\n2.1 Belmoment\n•\tAlleen tijdens openingstijden\n•\tLiefst tijdens een normaal druk moment (geen daluren)\n⸻\n2.2 Belregels\nPer zaak geldt:\n1.\tBel 1 keer\n2.\tWordt er niet opgenomen binnen ±30 seconden:\n•\tHang op\n•\tBel na 1–2 minuten opnieuw\n3.\tWordt er dan nog steeds niet opgenomen:\n•\tStop → dit is al waardevolle informatie\n❗ Je hoeft geen gesprek te voeren\n❗ Je mag direct ophangen zodra er wordt opgenomen\nHet gaat puur om:\n•\tBereikbaarheid\n•\tEerste indruk\n⸻\n3. Waar letten we op?"
+  }
+}

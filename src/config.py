@@ -18,8 +18,8 @@ class Config:
 
     # Pinecone
     pinecone_api_key: str = os.getenv("PINECONE_API_KEY", "")
-    pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "yamie-test")
-    pinecone_namespace: str = "test-data"
+    pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "yamie-knowledge")
+    pinecone_namespace: str = os.getenv("PINECONE_NAMESPACE", "operations-department")
 
     # Chunking
     chunk_size: int = 500
