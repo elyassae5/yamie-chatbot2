@@ -78,7 +78,17 @@ def debug_query(question: str, export: bool = False) -> dict:
     # Initialize retriever
     print_subheader("1. RETRIEVER INITIALIZATION")
     
-    retriever = Retriever()
+    from src.query.retriever import create_multi_namespace_retriever
+    retriever = create_multi_namespace_retriever(
+        namespaces=[
+            "operations-department",
+            "yamie-pastabar",
+            "flaminwok",
+            "smokey-joes",
+            "officiele-documenten",
+        ],
+        config=config
+    )
     stats = retriever.get_stats()
     
     print(f"\n  Index: {config.pinecone_index_name}")

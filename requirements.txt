@@ -32,3 +32,4 @@ twilio
 llama-index-readers-notion
 
 pypdf
+tiktoken
