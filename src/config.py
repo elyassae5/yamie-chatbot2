@@ -86,9 +86,9 @@ class Config:
         if not self.supabase_service_role_key:
             errors.append("SUPABASE_SERVICE_ROLE_KEY missing")
 
-        # Notion validation
-        if not self.notion_api_key:
-            errors.append("NOTION_API_KEY missing")
+        # # Notion validation (optional - only needed for ingestion)
+        # if not self.notion_api_key:
+        #     errors.append("NOTION_API_KEY missing")
         
         if errors:
             error_msg = "Config errors:\n" + "\n".join(errors)
