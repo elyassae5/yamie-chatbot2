@@ -21,12 +21,15 @@ class Config:
     pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "yamie-knowledge")
     pinecone_namespace: str = os.getenv("PINECONE_NAMESPACE", "operations-department")
 
+    # Notion Integration
+    notion_api_key: str = os.getenv("NOTION_API_KEY", "")
+
     # Chunking
     chunk_size: int = 500
     chunk_overlap: int = 150
 
     # Query/Retrieval Settings
-    query_top_k: int = 8                  # Number of chunks to retrieve
+    query_top_k: int = 15                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.0
     
     # LLM Settings
@@ -82,6 +85,10 @@ class Config:
         
         if not self.supabase_service_role_key:
             errors.append("SUPABASE_SERVICE_ROLE_KEY missing")
+
+        # Notion validation
+        if not self.notion_api_key:
+            errors.append("NOTION_API_KEY missing")
         
         if errors:
             error_msg = "Config errors:\n" + "\n".join(errors)

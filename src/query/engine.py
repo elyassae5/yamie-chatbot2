@@ -46,7 +46,22 @@ class QueryEngine:
         try:
             # Initialize components
             logger.info("initializing_component", component="retriever")
-            self.retriever = Retriever(config=self.config)
+            # Use multi-namespace retriever to search all sources
+            from src.query.retriever import create_multi_namespace_retriever
+            self.retriever = create_multi_namespace_retriever(
+                namespaces=[
+                    "operations-department",
+                    "yamie-pastabar",
+                    "flaminwok",
+                    "smokey-joes",
+                    "officiele-documenten",
+                ],
+                config=self.config
+            )
+            logger.info(
+                "multi_namespace_retriever_initialized",
+                namespaces=["operations-department", "yamie-pastabar", "flaminwok", "smokey-joes", "officiele-documenten"]
+            )
             
             logger.info("initializing_component", component="responder")
             self.responder = Responder(config=self.config)

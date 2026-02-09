@@ -69,6 +69,7 @@ class NotionSource:
 
 
 # Define your Notion sources here - add more as you expand
+# Define your Notion sources here - add more as you expand
 NOTION_SOURCES: Dict[str, NotionSource] = {
     "operations-department": NotionSource(
         page_id="2f04b2c6-b052-80d9-b2de-fbe6403d5d57",
@@ -78,35 +79,42 @@ NOTION_SOURCES: Dict[str, NotionSource] = {
         include_nested=True,
         include_files=True,
     ),
-    # Future sources - uncomment and configure when ready:
-    #
-    # "yamie-pastabar": NotionSource(
-    #     page_id="YOUR_PAGE_ID_HERE",
-    #     namespace="yamie-pastabar",
-    #     name="Yamie Pastabar",
-    #     description="Yamie locations, recipes, procedures",
-    # ),
-    #
-    # "flaminwok": NotionSource(
-    #     page_id="YOUR_PAGE_ID_HERE",
-    #     namespace="flaminwok",
-    #     name="Flamin'wok",
-    #     description="Flamin'wok locations and content",
-    # ),
-    #
-    # "smokey-joes": NotionSource(
-    #     page_id="YOUR_PAGE_ID_HERE",
-    #     namespace="smokey-joes",
-    #     name="Smokey Joe's",
-    #     description="Smokey Joe's content",
-    # ),
-    #
-    # "werkdocumenten": NotionSource(
-    #     page_id="YOUR_PAGE_ID_HERE",
-    #     namespace="werkdocumenten",
-    #     name="Werkdocumenten",
-    #     description="Recipes, ingredients, allergens across brands",
-    # ),
+    
+    "yamie-pastabar": NotionSource(
+        page_id="2a74b2c6-b052-8028-8ced-d0d2e312ee24",
+        namespace="yamie-pastabar",
+        name="Yamie Pastabar",
+        description="Yamie PastaBar brand content and locations",
+        include_nested=True,
+        include_files=True,
+    ),
+    
+    "flaminwok": NotionSource(
+        page_id="2a74b2c6-b052-8083-b467-f42215fbfcf2",
+        namespace="flaminwok",
+        name="Flamin'wok",
+        description="Flamin'wok brand content and locations",
+        include_nested=True,
+        include_files=True,
+    ),
+    
+    "smokey-joes": NotionSource(
+        page_id="2a74b2c6-b052-8064-973b-d112b64fdec8",
+        namespace="smokey-joes",
+        name="Smokey Joe's",
+        description="Smokey Joe's brand content and locations",
+        include_nested=True,
+        include_files=True,
+    ),
+    
+    "officiele-documenten": NotionSource(
+        page_id="2a74b2c6-b052-802e-a9ee-f848a2c7548a",
+        namespace="officiele-documenten",
+        name="Officiële documenten",
+        description="Official documents including franchise handbook and werkdocumenten",
+        include_nested=True,
+        include_files=True,
+    ),
 }
 
 
@@ -514,15 +522,30 @@ class NotionIngestionPipeline:
     
     def _estimate_cost(self, nodes: List[BaseNode]) -> float:
         """
-        Estimate embedding cost for a set of nodes.
+        Estimate embedding cost for a set of nodes using accurate token counting.
         
         Based on OpenAI pricing (as of early 2025):
         - text-embedding-3-large: $0.00013 per 1K tokens
         - text-embedding-3-small: $0.00002 per 1K tokens
         """
-        # Rough token estimate: ~1.3 tokens per word
-        total_tokens = sum(len(node.text.split()) * 1.3 for node in nodes)
+        try:
+            import tiktoken
+            
+            # Use cl100k_base encoding (used by text-embedding-3 models)
+            encoding = tiktoken.get_encoding("cl100k_base")
+            
+            # Accurately count tokens
+            total_tokens = sum(len(encoding.encode(node.text)) for node in nodes)
+            
+        except ImportError:
+            # Fallback to rough estimate if tiktoken not installed
+            logger.warning(
+                "tiktoken_not_installed",
+                message="Using rough token estimate. Install tiktoken for accuracy: pip install tiktoken"
+            )
+            total_tokens = sum(len(node.text.split()) * 1.3 for node in nodes)
         
+        # Determine cost per 1K tokens based on model
         if "small" in self.config.embedding_model.lower():
             cost_per_1k = 0.00002
         else:
