@@ -11,8 +11,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import structlog
 
-# from fastapi_limiter.depends import RateLimiter
-# from fastapi_limiter import FastAPILimiter
+from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 
 from backend.config import get_backend_config
@@ -62,13 +61,13 @@ async def lifespan(app: FastAPI):
         )
         
         # Initialize FastAPILimiter
-        # await FastAPILimiter.init(redis_connection)
+        await FastAPILimiter.init(redis_connection)
         
-        # logger.info(
-        #     "rate_limiter_initialized",
-        #     status="success",
-        #     redis_host=src_config.redis_host
-        # )
+        logger.info(
+            "rate_limiter_initialized",
+            status="success",
+            redis_host=src_config.redis_host
+        )
         
     except Exception as e:
         logger.error(
@@ -84,14 +83,14 @@ async def lifespan(app: FastAPI):
     logger.info("backend_shutdown_started")
     
     # Close rate limiter
-    # try:
-    #     await FastAPILimiter.close()
-    #     logger.info("rate_limiter_closed")
-    # except Exception as e:
-    #     logger.warning(
-    #         "rate_limiter_close_failed",
-    #         error=str(e)
-    #     )
+    try:
+        await FastAPILimiter.close()
+        logger.info("rate_limiter_closed")
+    except Exception as e:
+        logger.warning(
+            "rate_limiter_close_failed",
+            error=str(e)
+        )
     
     logger.info("backend_shutdown_message", message="👋 YAMIEBOT BACKEND SHUTTING DOWN")
     logger.info("backend_shutdown_completed")
