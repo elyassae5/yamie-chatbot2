@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import structlog
 
+from fastapi_limiter.depends import RateLimiter
 from fastapi_limiter import FastAPILimiter
 import redis.asyncio as redis
 
