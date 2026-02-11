@@ -19,9 +19,6 @@ pydantic
 # Database (for logging)
 supabase
 
-# Frontend (for Gradio interface)
-gradio
-
 structlog
 
 fastapi-limiter==0.1.6
