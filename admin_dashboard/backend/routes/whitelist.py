@@ -20,8 +20,11 @@ config = get_admin_config()
 
 # ========== REQUEST/RESPONSE MODELS ==========
 
+# ========== REQUEST/RESPONSE MODELS ==========
+
 class WhitelistEntry(BaseModel):
     """A whitelisted phone number entry."""
+    id: int = Field(..., description="Unique ID")
     phone_number: str = Field(..., description="Phone number in format 'whatsapp:+31612345678'")
     name: str = Field(..., description="Name of the user")
     department: Optional[str] = Field(None, description="Department (e.g., Owner/Manager, Developer)")
@@ -34,6 +37,7 @@ class AddWhitelistRequest(BaseModel):
     """Request to add a new whitelisted number."""
     phone_number: str = Field(..., description="Phone number in format 'whatsapp:+31612345678'")
     name: str = Field(..., description="Name of the user")
+    department: str = Field(..., description="Department/role")
     notes: Optional[str] = None
 
 
@@ -119,6 +123,7 @@ async def add_whitelisted_number(
         new_entry = {
             "phone_number": entry.phone_number,
             "name": entry.name,
+            "department": entry.department,
             "is_active": True,
             "notes": entry.notes,
         }

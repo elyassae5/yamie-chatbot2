@@ -30,3 +30,5 @@ llama-index-readers-notion
 
 pypdf
 tiktoken
+
+bcrypt

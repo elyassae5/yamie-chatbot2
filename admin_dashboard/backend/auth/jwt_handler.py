@@ -1,10 +1,11 @@
 """
-JWT Token Handler - For admin authentication
+JWT Token Handler - For admin authentication with database verification
 """
 
 from datetime import datetime, timedelta
 from typing import Optional
 import jwt
+import bcrypt
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import structlog
@@ -96,24 +97,27 @@ def verify_access_token(
         )
 
 
-def create_get_current_user_dependency(secret_key: str, algorithm: str):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Factory function to create a get_current_user dependency with config injected.
+    Verify a plain password against a bcrypt hash.
     
-    This allows us to pass config values into the dependency function.
-    """
-    def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
-        """
-        Dependency to get the current authenticated user.
+    Args:
+        plain_password: Plain text password from user
+        hashed_password: Bcrypt hash from database
         
-        Use this in route dependencies to protect endpoints.
-        """
-        return verify_access_token(credentials, secret_key, algorithm)
-    
-    return get_current_user
+    Returns:
+        True if password matches, False otherwise
+    """
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode('utf-8'),
+            hashed_password.encode('utf-8')
+        )
+    except Exception as e:
+        logger.error("password_verification_error", error=str(e))
+        return False
 
 
-# Helper to avoid repeating config imports in routes
 def get_current_user_simple(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ) -> str:

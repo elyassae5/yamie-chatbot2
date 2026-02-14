@@ -27,10 +27,6 @@ class AdminConfig:
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60 * 24  # 24 hours
     
-    # Admin credentials (temporary - will move to database later)
-    admin_username: str = os.getenv("ADMIN_USERNAME", "admin")
-    admin_password: str = os.getenv("ADMIN_PASSWORD", "changeme123")
-    
     def __post_init__(self):
         """Set default CORS origins if not provided."""
         if self.cors_origins is None:

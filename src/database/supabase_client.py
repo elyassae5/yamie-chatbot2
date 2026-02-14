@@ -309,3 +309,14 @@ def get_supabase_logger() -> SupabaseLogger:
         _supabase_logger = SupabaseLogger()
     
     return _supabase_logger
+
+
+def get_supabase_client() -> Client:
+    """
+    Get the raw Supabase client for direct database access.
+    
+    Returns:
+        Supabase Client instance
+    """
+    logger_instance = get_supabase_logger()
+    return logger_instance.client
