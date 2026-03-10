@@ -125,7 +125,7 @@ async def add_whitelisted_number(
             phone = f"whatsapp:{phone}"
             
         new_entry = {
-            "phone_number": entry.phone_number,
+            "phone_number": phone,
             "name": entry.name,
             "department": entry.department,
             "is_active": True,
