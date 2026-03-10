@@ -1,8 +1,438 @@
+import { useState, useEffect } from "react";
+import Layout from "@/components/Layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { apiClient } from "@/lib/api";
+
+interface LogEntry {
+  id: string;
+  created_at: string;
+  user_id: string | null;
+  question: string | null;
+  transformed_question: string | null;
+  answer: string | null;
+  has_answer: boolean | null;
+  response_time_seconds: number | null;
+  sources: any;
+  chunks_retrieved: number | null;
+  model: string | null;
+  total_tokens: number | null;
+  error: string | null;
+  system_prompt_version: string | null;
+}
+
+interface LogsResponse {
+  logs: LogEntry[];
+  total_count: number;
+  page: number;
+  page_size: number;
+}
+
+interface LogStats {
+  total_queries: number;
+  average_response_time: number;
+  success_rate: number;
+  total_users: number;
+  successful_queries: number;
+  failed_queries: number;
+}
+
 export default function LogsPage() {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [stats, setStats] = useState<LogStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const pageSize = 20;
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+  useEffect(() => {
+    loadLogs();
+  }, [page, search]);
+
+  const loadStats = async () => {
+    try {
+      const response = await apiClient.get<LogStats>("/logs/stats/summary");
+      setStats(response.data);
+    } catch (err) {
+      console.error("Failed to load stats:", err);
+    }
+  };
+
+  const loadLogs = async () => {
+    try {
+      setLoading(true);
+      const params: any = { page, page_size: pageSize };
+      if (search) params.search = search;
+      const response = await apiClient.get<LogsResponse>("/logs/", { params });
+      setLogs(response.data.logs);
+      setTotalCount(response.data.total_count);
+      setError("");
+    } catch (err) {
+      setError("Kon vragen niet laden");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
+    setSearch(searchInput);
+    setPage(1);
+  };
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSearch("");
+    setPage(1);
+  };
+  const totalPages = Math.ceil(totalCount / pageSize);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return (
+      d.toLocaleDateString("nl-NL") +
+      " " +
+      d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })
+    );
+  };
+
+  const formatDateShort = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return (
+      d.toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit" }) +
+      " " +
+      d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })
+    );
+  };
+
+  const formatUserId = (userId: string | null) => {
+    if (!userId) return "—";
+    return userId.replace("whatsapp:", "");
+  };
+
+  const truncate = (text: string | null, maxLen: number) => {
+    if (!text) return "—";
+    return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-3xl font-bold">Query Logs</h1>
-      <p className="text-gray-600">Bekijk chatbot vragen en antwoorden - komt zo!</p>
-    </div>
+    <Layout>
+      <div>
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            Vragen Overzicht
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Bekijk alle chatbot vragen en antwoorden
+          </p>
+        </div>
+
+        {/* Stats - 2 col on mobile, 4 col on desktop */}
+        {stats && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
+              <p className="text-xs text-gray-500">Totaal</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                {stats.total_queries}
+              </p>
+            </div>
+            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
+              <p className="text-xs text-gray-500">Vandaag</p>
+              <p className="text-xl sm:text-2xl font-bold text-orange-600">
+                {(stats as any).queries_today ?? "—"}
+              </p>
+            </div>
+            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
+              <p className="text-xs text-gray-500">Gelukt</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">
+                {stats.successful_queries}
+              </p>
+            </div>
+            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
+              <p className="text-xs text-gray-500">Mislukt</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-500">
+                {stats.failed_queries}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              className="pl-9"
+              placeholder="Zoeken..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            />
+          </div>
+          <Button onClick={handleSearch} size="sm">
+            Zoeken
+          </Button>
+          {search && (
+            <Button variant="outline" size="sm" onClick={handleClearSearch}>
+              ✕
+            </Button>
+          )}
+        </div>
+
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">
+            Bezig met laden...
+          </div>
+        ) : (
+          <>
+            {/* Mobile: Card list */}
+            <div className="sm:hidden space-y-3">
+              {logs.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
+                </div>
+              ) : (
+                logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="bg-white shadow rounded-lg p-4 cursor-pointer active:bg-gray-50"
+                    onClick={() => setSelectedLog(log)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs text-gray-400">
+                        {log.created_at ? formatDateShort(log.created_at) : "—"}
+                      </span>
+                      {log.has_answer ? (
+                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          OK
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-xs">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Fout
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 mb-1">
+                      {truncate(log.question, 80)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {truncate(log.answer, 60)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1 font-mono">
+                      {formatUserId(log.user_id)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop: Table */}
+            <div className="hidden sm:block bg-white shadow rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-36">Tijdstip</TableHead>
+                    <TableHead className="w-32">Gebruiker</TableHead>
+                    <TableHead>Vraag</TableHead>
+                    <TableHead>Antwoord</TableHead>
+                    <TableHead className="w-20">Status</TableHead>
+                    <TableHead className="w-20">Tijd</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center text-gray-500 py-8"
+                      >
+                        {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    logs.map((log) => (
+                      <TableRow
+                        key={log.id}
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => setSelectedLog(log)}
+                      >
+                        <TableCell className="text-xs text-gray-500 whitespace-nowrap">
+                          {log.created_at ? formatDate(log.created_at) : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {formatUserId(log.user_id)}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {truncate(log.question, 80)}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {truncate(log.answer, 80)}
+                        </TableCell>
+                        <TableCell>
+                          {log.has_answer ? (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              OK
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Fout
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                          {log.response_time_seconds != null ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {log.response_time_seconds.toFixed(1)}s
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-gray-500">
+                  {totalCount} resultaten — pagina {page}/{totalPages}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => p - 1)}
+                    disabled={page === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Detail modal */}
+      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vraag Detail</DialogTitle>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="font-medium text-gray-500">Tijdstip</p>
+                  <p className="text-xs">
+                    {selectedLog.created_at
+                      ? formatDate(selectedLog.created_at)
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-500">Gebruiker</p>
+                  <p className="font-mono text-xs">
+                    {formatUserId(selectedLog.user_id)}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-500">Responstijd</p>
+                  <p>{selectedLog.response_time_seconds?.toFixed(2) ?? "—"}s</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-500">Tokens</p>
+                  <p>{selectedLog.total_tokens ?? "—"}</p>
+                </div>
+              </div>
+              <div>
+                <p className="font-medium text-gray-500 mb-1">Vraag</p>
+                <div className="bg-gray-50 rounded p-3">
+                  {selectedLog.question ?? "—"}
+                </div>
+              </div>
+              {selectedLog.transformed_question &&
+                selectedLog.transformed_question !== selectedLog.question && (
+                  <div>
+                    <p className="font-medium text-gray-500 mb-1">
+                      Getransformeerde vraag
+                    </p>
+                    <div className="bg-gray-50 rounded p-3 italic text-gray-600">
+                      {selectedLog.transformed_question}
+                    </div>
+                  </div>
+                )}
+              <div>
+                <p className="font-medium text-gray-500 mb-1">Antwoord</p>
+                <div className="bg-gray-50 rounded p-3 whitespace-pre-wrap">
+                  {selectedLog.answer ?? "—"}
+                </div>
+              </div>
+              {selectedLog.error && (
+                <div>
+                  <p className="font-medium text-red-500 mb-1">Fout</p>
+                  <div className="bg-red-50 rounded p-3 text-red-700">
+                    {selectedLog.error}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Layout>
   );
 }

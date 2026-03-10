@@ -22,7 +22,7 @@ config = get_admin_config()
 
 class QueryLogEntry(BaseModel):
     """A single query log entry."""
-    id: Optional[int] = None
+    id: Optional[str] = None
     created_at: Optional[datetime] = None
     user_id: Optional[str] = None
     client_ip: Optional[str] = None
@@ -243,6 +243,13 @@ async def get_logs_summary(
         
         unique_users = len(set(log.get("user_id") for log in logs if log.get("user_id")))
         
+        from datetime import date
+        today = date.today().isoformat()
+        queries_today = sum(
+            1 for log in logs
+            if log.get("created_at", "").startswith(today)
+        )
+        
         logger.info("logs_summary_generated", requested_by=username, total_queries=total_queries)
         
         return {
@@ -251,7 +258,8 @@ async def get_logs_summary(
             "success_rate": round(success_rate, 2),
             "total_users": unique_users,
             "successful_queries": successful_queries,
-            "failed_queries": total_queries - successful_queries
+            "failed_queries": total_queries - successful_queries,
+            "queries_today": queries_today
         }
         
     except Exception as e:

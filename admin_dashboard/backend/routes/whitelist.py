@@ -120,6 +120,10 @@ async def add_whitelisted_number(
             )
         
         # Insert new entry
+        phone = entry.phone_number.strip()
+        if not phone.startswith("whatsapp:"):
+            phone = f"whatsapp:{phone}"
+            
         new_entry = {
             "phone_number": entry.phone_number,
             "name": entry.name,
