@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -18,14 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { apiClient } from "@/lib/api";
 
 interface LogEntry {
@@ -157,9 +149,9 @@ export default function LogsPage() {
           </p>
         </div>
 
-        {/* Stats - 2 col on mobile, 4 col on desktop */}
+        {/* Stats - 2 cards */}
         {stats && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 mb-6 max-w-sm">
             <div className="bg-white shadow rounded-lg p-3 sm:p-4">
               <p className="text-xs text-gray-500">Totaal</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -170,18 +162,6 @@ export default function LogsPage() {
               <p className="text-xs text-gray-500">Vandaag</p>
               <p className="text-xl sm:text-2xl font-bold text-orange-600">
                 {(stats as any).queries_today ?? "—"}
-              </p>
-            </div>
-            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
-              <p className="text-xs text-gray-500">Gelukt</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-600">
-                {stats.successful_queries}
-              </p>
-            </div>
-            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
-              <p className="text-xs text-gray-500">Mislukt</p>
-              <p className="text-xl sm:text-2xl font-bold text-red-500">
-                {stats.failed_queries}
               </p>
             </div>
           </div>
@@ -238,17 +218,6 @@ export default function LogsPage() {
                       <span className="text-xs text-gray-400">
                         {log.created_at ? formatDateShort(log.created_at) : "—"}
                       </span>
-                      {log.has_answer ? (
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          OK
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="text-xs">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Fout
-                        </Badge>
-                      )}
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">
                       {truncate(log.question, 80)}
@@ -273,7 +242,6 @@ export default function LogsPage() {
                     <TableHead className="w-32">Gebruiker</TableHead>
                     <TableHead>Vraag</TableHead>
                     <TableHead>Antwoord</TableHead>
-                    <TableHead className="w-20">Status</TableHead>
                     <TableHead className="w-20">Tijd</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -281,7 +249,7 @@ export default function LogsPage() {
                   {logs.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="text-center text-gray-500 py-8"
                       >
                         {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
@@ -305,19 +273,6 @@ export default function LogsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-600">
                           {truncate(log.answer, 80)}
-                        </TableCell>
-                        <TableCell>
-                          {log.has_answer ? (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              OK
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Fout
-                            </Badge>
-                          )}
                         </TableCell>
                         <TableCell className="text-sm text-gray-500 whitespace-nowrap">
                           {log.response_time_seconds != null ? (
