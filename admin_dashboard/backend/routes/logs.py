@@ -159,54 +159,6 @@ async def get_query_logs(
         )
 
 
-@router.get("/{log_id}", response_model=QueryLogEntry)
-async def get_single_log(
-    log_id: int,
-    username: str = Depends(get_current_user_simple)
-):
-    """
-    Get a single query log entry by ID.
-    
-    Useful for viewing full details including all sources/chunks.
-    Requires authentication.
-    """
-    logger.info("single_log_fetch", log_id=log_id, requested_by=username)
-    
-    try:
-        # Import Supabase client
-        from src.database.supabase_client import get_supabase_logger
-        
-        supabase_logger = get_supabase_logger()
-        
-        # Fetch single log
-        response = supabase_logger.client.table("query_logs").select("*").eq("id", log_id).execute()
-        
-        if not response.data or len(response.data) == 0:
-            logger.warning("log_not_found", log_id=log_id)
-            raise HTTPException(
-                status_code=404,
-                detail=f"Query log with ID {log_id} not found"
-            )
-        
-        logger.info("single_log_fetched", log_id=log_id, requested_by=username)
-        
-        return response.data[0]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "single_log_fetch_failed",
-            error=str(e),
-            error_type=type(e).__name__,
-            log_id=log_id
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch query log: {str(e)}"
-        )
-
-
 @router.get("/stats/summary")
 async def get_logs_summary(
     username: str = Depends(get_current_user_simple)
@@ -305,4 +257,50 @@ async def get_logs_summary(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate summary: {str(e)}"
+        )
+
+
+@router.get("/{log_id}", response_model=QueryLogEntry)
+async def get_single_log(
+    log_id: int,
+    username: str = Depends(get_current_user_simple)
+):
+    """
+    Get a single query log entry by ID.
+
+    Useful for viewing full details including all sources/chunks.
+    Requires authentication.
+    """
+    logger.info("single_log_fetch", log_id=log_id, requested_by=username)
+
+    try:
+        from src.database.supabase_client import get_supabase_logger
+
+        supabase_logger = get_supabase_logger()
+
+        response = supabase_logger.client.table("query_logs").select("*").eq("id", log_id).execute()
+
+        if not response.data or len(response.data) == 0:
+            logger.warning("log_not_found", log_id=log_id)
+            raise HTTPException(
+                status_code=404,
+                detail=f"Query log with ID {log_id} not found"
+            )
+
+        logger.info("single_log_fetched", log_id=log_id, requested_by=username)
+
+        return response.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "single_log_fetch_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            log_id=log_id
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch query log: {str(e)}"
         )
