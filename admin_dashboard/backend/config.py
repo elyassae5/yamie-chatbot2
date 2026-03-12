@@ -28,15 +28,14 @@ class AdminConfig:
     jwt_expiration_minutes: int = 60 * 24  # 24 hours
     
     def __post_init__(self):
-        """Set default CORS origins if not provided."""
         if self.cors_origins is None:
             self.cors_origins = [
-                "http://localhost:5173",  # Vite default port
-                "http://localhost:3000",  # Alternative React port
+                "http://localhost:5173",
+                "http://localhost:3000",
                 "http://127.0.0.1:5173",
                 "http://127.0.0.1:3000",
+                "https://yamie-chatbot2.vercel.app",
             ]
-
 
 def get_admin_config() -> AdminConfig:
     """Get admin configuration singleton."""
