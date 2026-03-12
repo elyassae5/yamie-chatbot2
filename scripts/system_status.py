@@ -229,15 +229,15 @@ def check_notion(config):
             warn("Token valid but page not shared with integration — check Notion permissions")
         else:
             warn(f"Could not verify token (HTTP {res.status_code}) — may still work for ingestion")
-        return True  # Non-blocking — ingestion handles its own auth
 
+        # Show all registered sources
         print()
         print(f"  {'Source Key':<28} {'Namespace':<28} Page ID")
         print(f"  {'─'*28} {'─'*28} {'─'*12}")
         for key, source in NOTION_SOURCES.items():
             print(f"  {key:<28} {source.namespace:<28} {source.page_id[:8]}...")
 
-        return True
+        return True  # Non-blocking — ingestion handles its own auth
 
     except Exception as e:
         err("Could not reach Notion API", str(e))
