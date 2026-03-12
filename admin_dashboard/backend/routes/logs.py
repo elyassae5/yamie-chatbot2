@@ -72,7 +72,7 @@ async def get_query_logs(
 ):
     """
     Get query logs from Supabase with pagination and optional filtering.
-    
+
     Requires authentication.
     """
     logger.info(
@@ -83,41 +83,40 @@ async def get_query_logs(
         user_id=user_id,
         search=search
     )
-    
+
     try:
-        # Import Supabase client
         from src.database.supabase_client import get_supabase_logger
-        
+
         supabase_logger = get_supabase_logger()
-        
+
         # Build query
         query = supabase_logger.client.table("query_logs").select("*")
-        
+
         # Apply filters
         if user_id:
             query = query.eq("user_id", user_id)
-        
+
         if search:
             query = query.or_(f"question.ilike.%{search}%,answer.ilike.%{search}%")
-        
+
         if date_from:
             query = query.gte("created_at", f"{date_from}T00:00:00")
-        
+
         if date_to:
             query = query.lte("created_at", f"{date_to}T23:59:59")
-        
+
         # Order by most recent first
         query = query.order("created_at", desc=True)
-        
+
         # Calculate offset for pagination
         offset = (page - 1) * page_size
-        
+
         # Apply pagination
         query = query.range(offset, offset + page_size - 1)
-        
+
         # Execute query
         response = query.execute()
-        
+
         # Get total count (for pagination metadata)
         count_query = supabase_logger.client.table("query_logs").select("*", count="exact")
         if user_id:
@@ -128,10 +127,10 @@ async def get_query_logs(
             count_query = count_query.gte("created_at", f"{date_from}T00:00:00")
         if date_to:
             count_query = count_query.lte("created_at", f"{date_to}T23:59:59")
-        
+
         count_response = count_query.execute()
         total_count = count_response.count if hasattr(count_response, 'count') else len(response.data)
-        
+
         logger.info(
             "query_logs_fetched",
             requested_by=username,
@@ -139,14 +138,14 @@ async def get_query_logs(
             total_count=total_count,
             page=page
         )
-        
+
         return QueryLogsResponse(
             logs=response.data,
             total_count=total_count,
             page=page,
             page_size=page_size
         )
-        
+
     except Exception as e:
         logger.error(
             "query_logs_fetch_failed",
@@ -165,26 +164,21 @@ async def get_logs_summary(
 ):
     """
     Get summary statistics about query logs.
-    
-    Returns:
-    - Total queries
-    - Average response time
-    - Success rate
-    - Most common questions
-    
+
+    Returns total queries, average response time, success rate, unique users, queries today.
     Requires authentication.
     """
     logger.info("logs_summary_requested", requested_by=username)
-    
+
     try:
         from src.database.supabase_client import get_supabase_logger
-        from datetime import date, timezone
-        
+        from datetime import date
+
         supabase_logger = get_supabase_logger()
         client = supabase_logger.client
 
-        # ── 1. Total count (no data fetched, just the count header) ──────────
-        total_res = client.table("query_logs").select("id", count="exact").limit(0).execute()
+        # ── 1. Total count ────────────────────────────────────────────────────
+        total_res = client.table("query_logs").select("*", count="exact").limit(1).execute()
         total_queries = total_res.count or 0
 
         if total_queries == 0:
@@ -201,9 +195,9 @@ async def get_logs_summary(
         # ── 2. Successful queries count ───────────────────────────────────────
         success_res = (
             client.table("query_logs")
-            .select("id", count="exact")
+            .select("*", count="exact")
             .eq("has_answer", True)
-            .limit(0)
+            .limit(1)
             .execute()
         )
         successful_queries = success_res.count or 0
@@ -212,14 +206,14 @@ async def get_logs_summary(
         today_start = f"{date.today().isoformat()}T00:00:00"
         today_res = (
             client.table("query_logs")
-            .select("id", count="exact")
+            .select("*", count="exact")
             .gte("created_at", today_start)
-            .limit(0)
+            .limit(1)
             .execute()
         )
         queries_today = today_res.count or 0
 
-        # ── 4. Average response time (fetch only that one column) ─────────────
+        # ── 4. Average response time (single column only) ─────────────────────
         rt_res = client.table("query_logs").select("response_time_seconds").execute()
         times = [
             row["response_time_seconds"]
@@ -228,7 +222,7 @@ async def get_logs_summary(
         ]
         avg_response_time = sum(times) / len(times) if times else 0
 
-        # ── 5. Unique users (fetch only user_id column) ───────────────────────
+        # ── 5. Unique users (single column only) ─────────────────────────────
         users_res = client.table("query_logs").select("user_id").execute()
         unique_users = len(set(
             row["user_id"] for row in users_res.data if row.get("user_id")
@@ -247,7 +241,7 @@ async def get_logs_summary(
             "failed_queries": total_queries - successful_queries,
             "queries_today": queries_today,
         }
-        
+
     except Exception as e:
         logger.error(
             "logs_summary_failed",
