@@ -239,25 +239,31 @@ export default function LogsPage() {
               ))}
           </select>
           {/* Date from */}
-          <input
-            type="date"
-            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 px-1">Van</label>
+            <input
+              type="date"
+              className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
           {/* Date to */}
-          <input
-            type="date"
-            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 px-1">Tot</label>
+            <input
+              type="date"
+              className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
           <Button onClick={handleSearch} size="sm">
             Zoeken
           </Button>
