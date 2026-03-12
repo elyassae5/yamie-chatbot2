@@ -264,7 +264,10 @@ export default function LogsPage() {
               }}
             />
           </div>
-          <Button onClick={handleSearch} size="sm">
+          <Button
+            onClick={handleSearch}
+            className="bg-gray-900 hover:bg-gray-700 text-white w-full sm:w-auto"
+          >
             Zoeken
           </Button>
           {(search || selectedUser || dateFrom || dateTo) && (
