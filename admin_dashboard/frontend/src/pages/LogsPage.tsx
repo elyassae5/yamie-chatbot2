@@ -283,12 +283,13 @@ export default function LogsPage() {
           </Alert>
         )}
 
-        {loading ? (
+        {/* Show loading only on first load, not on page/filter changes */}
+        {loading && logs.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             Bezig met laden...
           </div>
         ) : (
-          <>
+          <div className={loading ? "opacity-50 pointer-events-none" : ""}>
             {/* Mobile: Card list */}
             <div className="sm:hidden space-y-3">
               {logs.length === 0 ? (
@@ -306,15 +307,15 @@ export default function LogsPage() {
                       <span className="text-xs text-gray-400">
                         {log.created_at ? formatDateShort(log.created_at) : "—"}
                       </span>
+                      <span className="text-xs text-gray-400 font-medium">
+                        {formatUserDisplay(log.user_id)}
+                      </span>
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">
                       {truncate(log.question, 80)}
                     </p>
                     <p className="text-xs text-gray-500">
                       {truncate(log.answer, 60)}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1 font-mono">
-                      {formatUserDisplay(log.user_id)}
                     </p>
                   </div>
                 ))
@@ -336,7 +337,7 @@ export default function LogsPage() {
                   {logs.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={4}
                         className="text-center text-gray-500 py-8"
                       >
                         {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
@@ -370,11 +371,11 @@ export default function LogsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
                 <p className="text-sm text-gray-500">
                   {totalCount} resultaten — pagina {page}/{totalPages}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex gap-1 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -383,6 +384,40 @@ export default function LogsPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(
+                      (p) =>
+                        p === 1 || p === totalPages || Math.abs(p - page) <= 2,
+                    )
+                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                      if (
+                        idx > 0 &&
+                        (p as number) - (arr[idx - 1] as number) > 1
+                      )
+                        acc.push("...");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, idx) =>
+                      p === "..." ? (
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-2 py-1 text-sm text-gray-400 self-center"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={p}
+                          variant={p === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPage(p as number)}
+                          className={p === page ? "bg-gray-900 text-white" : ""}
+                        >
+                          {p}
+                        </Button>
+                      ),
+                    )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -394,7 +429,7 @@ export default function LogsPage() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
