@@ -17,14 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { getWhitelist } from "@/api/whitelist";
 
@@ -68,6 +61,9 @@ export default function LogsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
@@ -81,7 +77,7 @@ export default function LogsPage() {
   }, []);
   useEffect(() => {
     loadLogs();
-  }, [page, search]);
+  }, [page, search, selectedUser, dateFrom, dateTo]);
 
   const loadWhitelistNames = async () => {
     try {
@@ -128,6 +124,9 @@ export default function LogsPage() {
       setLoading(true);
       const params: any = { page, page_size: pageSize };
       if (search) params.search = search;
+      if (selectedUser) params.user_id = selectedUser;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
       const response = await apiClient.get<LogsResponse>("/logs/", { params });
       setLogs(response.data.logs);
       setTotalCount(response.data.total_count);
@@ -146,6 +145,9 @@ export default function LogsPage() {
   const handleClearSearch = () => {
     setSearchInput("");
     setSearch("");
+    setSelectedUser("");
+    setDateFrom("");
+    setDateTo("");
     setPage(1);
   };
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -204,24 +206,63 @@ export default function LogsPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
+        {/* Filters */}
+        <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               className="pl-9"
-              placeholder="Zoeken..."
+              placeholder="Zoeken in vragen en antwoorden..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
+          {/* Gebruiker dropdown */}
+          <select
+            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10 min-w-40"
+            value={selectedUser}
+            onChange={(e) => {
+              setSelectedUser(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">Alle gebruikers</option>
+            {Object.entries(phoneToName)
+              .filter(([key]) => key.startsWith("whatsapp:"))
+              .map(([phone, name]) => (
+                <option key={phone} value={phone}>
+                  {name}
+                </option>
+              ))}
+          </select>
+          {/* Date from */}
+          <input
+            type="date"
+            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+          {/* Date to */}
+          <input
+            type="date"
+            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+          />
           <Button onClick={handleSearch} size="sm">
             Zoeken
           </Button>
-          {search && (
+          {(search || selectedUser || dateFrom || dateTo) && (
             <Button variant="outline" size="sm" onClick={handleClearSearch}>
-              ✕
+              ✕ Wis filters
             </Button>
           )}
         </div>
@@ -279,7 +320,6 @@ export default function LogsPage() {
                     <TableHead className="w-32">Gebruiker</TableHead>
                     <TableHead>Vraag</TableHead>
                     <TableHead>Antwoord</TableHead>
-                    <TableHead className="w-20">Tijd</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -310,16 +350,6 @@ export default function LogsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-600">
                           {truncate(log.answer, 80)}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500 whitespace-nowrap">
-                          {log.response_time_seconds != null ? (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {log.response_time_seconds.toFixed(1)}s
-                            </span>
-                          ) : (
-                            "—"
-                          )}
                         </TableCell>
                       </TableRow>
                     ))

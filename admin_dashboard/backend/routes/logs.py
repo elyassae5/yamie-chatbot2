@@ -66,6 +66,8 @@ async def get_query_logs(
     page_size: int = Query(50, ge=1, le=500, description="Number of logs per page"),
     user_id: Optional[str] = Query(None, description="Filter by user ID (phone number)"),
     search: Optional[str] = Query(None, description="Search in questions and answers"),
+    date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
     username: str = Depends(get_current_user_simple)
 ):
     """
@@ -96,8 +98,13 @@ async def get_query_logs(
             query = query.eq("user_id", user_id)
         
         if search:
-            # Search in question OR answer
             query = query.or_(f"question.ilike.%{search}%,answer.ilike.%{search}%")
+        
+        if date_from:
+            query = query.gte("created_at", f"{date_from}T00:00:00")
+        
+        if date_to:
+            query = query.lte("created_at", f"{date_to}T23:59:59")
         
         # Order by most recent first
         query = query.order("created_at", desc=True)
@@ -117,6 +124,10 @@ async def get_query_logs(
             count_query = count_query.eq("user_id", user_id)
         if search:
             count_query = count_query.or_(f"question.ilike.%{search}%,answer.ilike.%{search}%")
+        if date_from:
+            count_query = count_query.gte("created_at", f"{date_from}T00:00:00")
+        if date_to:
+            count_query = count_query.lte("created_at", f"{date_to}T23:59:59")
         
         count_response = count_query.execute()
         total_count = count_response.count if hasattr(count_response, 'count') else len(response.data)
