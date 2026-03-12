@@ -5,9 +5,7 @@ import { apiClient } from "@/lib/api";
 
 interface DashboardStats {
   totalQueries: number;
-  successRate: number;
   whitelistedNumbers: number;
-  systemStatus: string;
   queriesToday: number;
 }
 
@@ -25,12 +23,9 @@ export default function DashboardPage() {
         apiClient.get("/logs/stats/summary"),
         apiClient.get("/whitelist/"),
       ]);
-
       setStats({
         totalQueries: logsRes.data.total_queries,
-        successRate: logsRes.data.success_rate,
         whitelistedNumbers: whitelistRes.data.length,
-        systemStatus: "Online",
         queriesToday: logsRes.data.queries_today,
       });
     } catch (err) {
@@ -68,21 +63,28 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <div className="px-4 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Welkom bij het YamieBot admin dashboard!
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Welkom bij het YamieBot admin dashboard
         </p>
 
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {loading
-            ? Array.from({ length: 4 }).map((_, i) => (
+            ? Array.from({ length: 3 }).map((_, i) => (
                 <div
                   key={i}
                   className="bg-white shadow rounded-lg p-5 animate-pulse"
                 >
-                  <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
-                  <div className="h-8 bg-gray-200 rounded w-16"></div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-md flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="h-3 bg-gray-200 rounded w-24 mb-3" />
+                      <div className="h-7 bg-gray-200 rounded w-16" />
+                    </div>
+                  </div>
                 </div>
               ))
             : cards.map(({ label, value, icon: Icon, color, bg }) => (
