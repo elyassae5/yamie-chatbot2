@@ -34,5 +34,3 @@ pypdf
 tiktoken
 
 bcrypt
-
-react-markdown
