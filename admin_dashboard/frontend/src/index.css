@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+html,
+body {
+  background-color: #f9fafb;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
