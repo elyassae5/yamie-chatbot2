@@ -206,6 +206,11 @@ export default function WhitelistPage() {
                           {entry.department}
                         </p>
                       )}
+                      {entry.notes && (
+                        <p className="text-xs text-gray-400 mt-0.5 italic">
+                          {entry.notes}
+                        </p>
+                      )}
                     </div>
                     <Badge
                       variant={entry.is_active ? "default" : "secondary"}
@@ -262,6 +267,11 @@ export default function WhitelistPage() {
                     <TableRow key={entry.id}>
                       <TableCell className="font-medium">
                         {entry.name}
+                        {entry.notes && (
+                          <p className="text-xs text-gray-400 font-normal italic mt-0.5">
+                            {entry.notes}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {entry.phone_number}
