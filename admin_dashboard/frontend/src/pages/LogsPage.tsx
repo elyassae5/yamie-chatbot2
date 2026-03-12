@@ -17,8 +17,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Check,
+} from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { getWhitelist } from "@/api/whitelist";
 
 interface LogEntry {
   id: string;
@@ -63,14 +71,48 @@ export default function LogsPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [phoneToName, setPhoneToName] = useState<Record<string, string>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const pageSize = 20;
 
   useEffect(() => {
     loadStats();
+    loadWhitelistNames();
   }, []);
   useEffect(() => {
     loadLogs();
   }, [page, search]);
+
+  const loadWhitelistNames = async () => {
+    try {
+      const entries = await getWhitelist();
+      const map: Record<string, string> = {};
+      entries.forEach((e) => {
+        // Store by both formats: "whatsapp:+316..." and "+316..."
+        map[e.phone_number] = e.name;
+        map[e.phone_number.replace("whatsapp:", "")] = e.name;
+      });
+      setPhoneToName(map);
+    } catch {
+      // Silently fail - fallback to phone number
+    }
+  };
+
+  const formatUserDisplay = (userId: string | null) => {
+    if (!userId) return "—";
+    const clean = userId.replace("whatsapp:", "");
+    return phoneToName[userId] || phoneToName[clean] || clean;
+  };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      // fallback silently
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -124,11 +166,6 @@ export default function LogsPage() {
       " " +
       d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })
     );
-  };
-
-  const formatUserId = (userId: string | null) => {
-    if (!userId) return "—";
-    return userId.replace("whatsapp:", "");
   };
 
   const truncate = (text: string | null, maxLen: number) => {
@@ -226,7 +263,7 @@ export default function LogsPage() {
                       {truncate(log.answer, 60)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1 font-mono">
-                      {formatUserId(log.user_id)}
+                      {formatUserDisplay(log.user_id)}
                     </p>
                   </div>
                 ))
@@ -266,7 +303,7 @@ export default function LogsPage() {
                           {log.created_at ? formatDate(log.created_at) : "—"}
                         </TableCell>
                         <TableCell className="text-xs font-mono">
-                          {formatUserId(log.user_id)}
+                          {formatUserDisplay(log.user_id)}
                         </TableCell>
                         <TableCell className="text-sm">
                           {truncate(log.question, 80)}
@@ -340,21 +377,31 @@ export default function LogsPage() {
                 </div>
                 <div>
                   <p className="font-medium text-gray-500">Gebruiker</p>
-                  <p className="font-mono text-xs">
-                    {formatUserId(selectedLog.user_id)}
+                  <p className="text-xs font-medium">
+                    {formatUserDisplay(selectedLog.user_id)}
                   </p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-500">Responstijd</p>
-                  <p>{selectedLog.response_time_seconds?.toFixed(2) ?? "—"}s</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-500">Tokens</p>
-                  <p>{selectedLog.total_tokens ?? "—"}</p>
                 </div>
               </div>
               <div>
-                <p className="font-medium text-gray-500 mb-1">Vraag</p>
+                <div className="flex justify-between items-center mb-1">
+                  <p className="font-medium text-gray-500">Vraag</p>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(selectedLog.question ?? "", "question")
+                    }
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    {copiedField === "question" ? (
+                      <>
+                        <Check className="h-3 w-3 text-green-500" /> Gekopieerd
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" /> Kopieer
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="bg-gray-50 rounded p-3">
                   {selectedLog.question ?? "—"}
                 </div>
@@ -371,7 +418,25 @@ export default function LogsPage() {
                   </div>
                 )}
               <div>
-                <p className="font-medium text-gray-500 mb-1">Antwoord</p>
+                <div className="flex justify-between items-center mb-1">
+                  <p className="font-medium text-gray-500">Antwoord</p>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(selectedLog.answer ?? "", "answer")
+                    }
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    {copiedField === "answer" ? (
+                      <>
+                        <Check className="h-3 w-3 text-green-500" /> Gekopieerd
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" /> Kopieer
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="bg-gray-50 rounded p-3 whitespace-pre-wrap">
                   {selectedLog.answer ?? "—"}
                 </div>
