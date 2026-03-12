@@ -20,6 +20,7 @@ import {
 import { Search, ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { getWhitelist } from "@/api/whitelist";
+import ReactMarkdown from "react-markdown";
 
 interface LogEntry {
   id: string;
@@ -467,8 +468,8 @@ export default function LogsPage() {
                     )}
                   </button>
                 </div>
-                <div className="bg-gray-50 rounded p-3 whitespace-pre-wrap">
-                  {selectedLog.answer ?? "—"}
+                <div className="bg-gray-50 rounded p-3 prose prose-sm max-w-none">
+                  <ReactMarkdown>{selectedLog.answer ?? "—"}</ReactMarkdown>
                 </div>
               </div>
               {selectedLog.error && (
