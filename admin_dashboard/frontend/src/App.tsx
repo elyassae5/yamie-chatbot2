@@ -1,10 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { isAuthenticated } from './lib/auth';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import WhitelistPage from './pages/WhitelistPage';
-import LogsPage from './pages/LogsPage';
-import SystemPage from './pages/SystemPage';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { isAuthenticated } from "./lib/auth";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import WhitelistPage from "./pages/WhitelistPage";
+import LogsPage from "./pages/LogsPage";
+import SystemPage from "./pages/SystemPage";
+import SyncPage from "./pages/SyncPage";
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -20,7 +21,7 @@ function App() {
       <Routes>
         {/* Public route */}
         <Route path="/login" element={<LoginPage />} />
-        
+
         {/* Protected routes */}
         <Route
           path="/"
@@ -54,7 +55,15 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+        <Route
+          path="/sync"
+          element={
+            <ProtectedRoute>
+              <SyncPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Catch all - redirect to dashboard */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

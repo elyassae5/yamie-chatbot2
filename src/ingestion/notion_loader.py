@@ -245,6 +245,121 @@ class NotionLoader:
         logger.info("search_completed", pages_found=len(pages))
         return pages
     
+    def enumerate_pages(self, page_id: str, parent_path: str = "") -> List[Dict[str, Any]]:
+        """
+        Lightweight walk of a Notion page tree.
+        Returns page IDs and last_edited_time WITHOUT loading content.
+        Used by the sync service to detect which pages changed.
+        
+        Args:
+            page_id: Root page ID to start from
+            parent_path: Path prefix (used internally for recursion)
+            
+        Returns:
+            List of dicts: {"page_id", "title", "last_edited_time", "parent_path"}
+        """
+        page_info = self._fetch_page(page_id)
+        if not page_info:
+            return []
+        
+        title = self._extract_page_title(page_info)
+        current_path = f"{parent_path}/{title}" if parent_path else title
+        last_edited = page_info.get("last_edited_time", "")
+        
+        pages = [{
+            "page_id": page_id,
+            "title": title,
+            "last_edited_time": last_edited,
+            "parent_path": current_path,
+        }]
+        
+        # Fetch child blocks to find child_page blocks (lightweight - no content extraction)
+        blocks = self._fetch_all_blocks(page_id)
+        child_pages = [b for b in blocks if b.get("type") == "child_page"]
+        
+        for child_block in child_pages:
+            child_id = child_block["id"]
+            child_pages_result = self.enumerate_pages(child_id, current_path)
+            pages.extend(child_pages_result)
+        
+        return pages
+    
+    def load_single_page(
+        self,
+        page_id: str,
+        namespace: str,
+        parent_path: str,
+        include_files: bool = True,
+    ) -> List[Document]:
+        """
+        Load content from a SINGLE Notion page (no recursion into children).
+        Used by the sync service to re-ingest individual changed pages.
+        
+        Args:
+            page_id: Notion page ID to load
+            namespace: Pinecone namespace
+            parent_path: Full path for this page (e.g. "Operations Department/SOPs")
+            include_files: Whether to extract embedded PDF/DOCX files
+            
+        Returns:
+            List of Document objects for this page (text + any embedded files)
+        """
+        logger.info("load_single_page", page_id=page_id, path=parent_path)
+        
+        documents = []
+        
+        page_info = self._fetch_page(page_id)
+        if not page_info:
+            logger.warning("page_not_found", page_id=page_id)
+            return documents
+        
+        page_title = self._extract_page_title(page_info)
+        page_url = page_info.get("url", "")
+        
+        # Fetch all blocks
+        blocks = self._fetch_all_blocks(page_id)
+        
+        # Extract text content
+        text_content = self._blocks_to_text(blocks)
+        
+        if text_content and text_content.strip():
+            doc = Document(
+                text=text_content,
+                metadata={
+                    "namespace": namespace,
+                    "source_path": parent_path,
+                    "source_type": "notion_page",
+                    "notion_page_id": page_id,
+                    "page_id": page_id,
+                    "page_title": page_title,
+                    "page_url": page_url,
+                    "file_name": page_title,
+                    "char_count": len(text_content),
+                    "word_count": len(text_content.split()),
+                    "ingested_at": datetime.utcnow().isoformat(),
+                }
+            )
+            documents.append(doc)
+        
+        # Extract embedded files
+        if include_files:
+            file_docs = self._extract_embedded_files(
+                blocks=blocks,
+                namespace=namespace,
+                parent_path=parent_path,
+                page_id=page_id
+            )
+            documents.extend(file_docs)
+        
+        logger.info(
+            "single_page_loaded",
+            page_id=page_id,
+            documents=len(documents),
+            path=parent_path
+        )
+        
+        return documents
+    
     # =========================================================================
     # RECURSIVE LOADING
     # =========================================================================
@@ -294,6 +409,7 @@ class NotionLoader:
                     "namespace": namespace,
                     "source_path": parent_path,
                     "source_type": "notion_page",
+                    "notion_page_id": page_id,
                     
                     # Page details
                     "page_id": page_id,
@@ -322,7 +438,8 @@ class NotionLoader:
             file_docs = self._extract_embedded_files(
                 blocks=blocks,
                 namespace=namespace,
-                parent_path=parent_path
+                parent_path=parent_path,
+                page_id=page_id
             )
             documents.extend(file_docs)
         
@@ -515,7 +632,8 @@ class NotionLoader:
         self,
         blocks: List[Dict],
         namespace: str,
-        parent_path: str
+        parent_path: str,
+        page_id: str = ""
     ) -> List[Document]:
         """
         Extract text from embedded PDF and DOCX files.
@@ -569,6 +687,7 @@ class NotionLoader:
                         "namespace": namespace,
                         "source_path": full_path,
                         "source_type": f"notion_embedded_{file_ext[1:]}",  # pdf or docx
+                        "notion_page_id": page_id,
                         
                         # File details
                         "file_name": file_name,

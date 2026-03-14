@@ -7,6 +7,7 @@ import {
   FileText,
   Settings,
   LogOut,
+  RefreshCw,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -27,6 +28,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/whitelist", icon: Phone, label: "Nummers" },
     { path: "/logs", icon: FileText, label: "Vragen" },
+    { path: "/sync", icon: RefreshCw, label: "Sync" },
     { path: "/system", icon: Settings, label: "Systeem" },
   ];
 
@@ -91,7 +93,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 sm:hidden z-50">
-        <div className="grid grid-cols-5 h-16">
+        <div className="grid grid-cols-6 h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
