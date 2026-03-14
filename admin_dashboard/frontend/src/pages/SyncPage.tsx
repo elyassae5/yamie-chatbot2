@@ -38,6 +38,7 @@ interface SourceResultDetail {
   pages_changed: number;
   pages_synced: number;
   pages_failed: number;
+  pages_removed: number;
   chunks_upserted: number;
   error: string | null;
   pages?: PageDetail[];
@@ -470,6 +471,8 @@ export default function SyncPage() {
                                       {sr.pages_checked} gecontroleerd
                                       {sr.pages_changed > 0 &&
                                         ` · ${sr.pages_changed} gewijzigd`}
+                                      {sr.pages_removed > 0 &&
+                                        ` · ${sr.pages_removed} verwijderd`}
                                     </span>
                                   </div>
 
@@ -482,7 +485,9 @@ export default function SyncPage() {
                                           className="flex items-center gap-2 text-xs"
                                         >
                                           <FileText className="h-3 w-3 text-gray-300 flex-shrink-0" />
-                                          <span className="text-gray-700 truncate">
+                                          <span
+                                            className={`truncate ${page.status === "removed" ? "text-gray-400 italic" : "text-gray-700"}`}
+                                          >
                                             {page.title}
                                           </span>
                                           {page.status === "failed" && (
@@ -491,6 +496,11 @@ export default function SyncPage() {
                                               className="text-[10px] px-1 py-0"
                                             >
                                               mislukt
+                                            </Badge>
+                                          )}
+                                          {page.status === "removed" && (
+                                            <Badge className="bg-red-50 text-red-600 hover:bg-red-50 text-[10px] px-1 py-0">
+                                              verwijderd
                                             </Badge>
                                           )}
                                         </div>

@@ -71,6 +71,8 @@ class SourceSyncResult:
     pages_changed: int = 0
     pages_synced: int = 0
     pages_failed: int = 0
+    pages_removed: int = 0
+    removed_page_titles: List[str] = field(default_factory=list)
     total_chunks_upserted: int = 0
     total_vectors_deleted: int = 0
     duration_seconds: float = 0.0
@@ -268,6 +270,7 @@ class ContentSyncService:
         try:
             # Step 1: Enumerate all pages in this source tree
             all_pages = self.notion_loader.enumerate_pages(source.page_id)
+            notion_page_ids = {p["page_id"] for p in all_pages}
 
             logger.info(
                 "pages_enumerated",
@@ -275,7 +278,13 @@ class ContentSyncService:
                 total_pages=len(all_pages),
             )
 
-            # Step 2: Determine which pages changed
+            # Step 2: Clean up orphaned vectors (pages deleted from Notion)
+            orphan_results = self._cleanup_orphaned_pages(
+                namespace=source.namespace,
+                notion_page_ids=notion_page_ids,
+            )
+
+            # Step 3: Determine which pages changed
             if force_full:
                 changed_pages = all_pages
             else:
@@ -287,9 +296,10 @@ class ContentSyncService:
                 source=source_key,
                 pages_checked=len(all_pages),
                 pages_changed=len(changed_pages),
+                pages_orphaned=len(orphan_results),
             )
 
-            if not changed_pages:
+            if not changed_pages and not orphan_results:
                 duration = (datetime.now(timezone.utc) - start_time).total_seconds()
                 return SourceSyncResult(
                     source_key=source_key,
@@ -300,7 +310,7 @@ class ContentSyncService:
                     duration_seconds=round(duration, 2),
                 )
 
-            # Step 3: Sync each changed page
+            # Step 4: Sync each changed page
             page_results = []
             total_chunks = 0
             total_deleted = 0
@@ -326,10 +336,13 @@ class ContentSyncService:
                 if result.status == "failed":
                     failed += 1
 
+            # Include orphan results in page_results
+            page_results.extend(orphan_results)
+
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Determine status
-            if failed == len(changed_pages):
+            if failed == len(changed_pages) and len(changed_pages) > 0:
                 status = "failed"
             elif failed > 0:
                 status = "partial"
@@ -344,6 +357,8 @@ class ContentSyncService:
                 pages_changed=len(changed_pages),
                 pages_synced=len(changed_pages) - failed,
                 pages_failed=failed,
+                pages_removed=len(orphan_results),
+                removed_page_titles=[r.title for r in orphan_results],
                 total_chunks_upserted=total_chunks,
                 total_vectors_deleted=total_deleted,
                 duration_seconds=round(duration, 2),
@@ -511,6 +526,103 @@ class ContentSyncService:
             )
             return 0
 
+    def _get_pinecone_page_ids(self, namespace: str) -> Dict[str, str]:
+        """
+        List all vector IDs in a Pinecone namespace and extract unique page IDs.
+
+        Returns:
+            Dict mapping page_id → first vector ID seen (for reference).
+            Only includes vectors with deterministic ID format ({page_id}::chunk::{index}).
+        """
+        page_ids: Dict[str, str] = {}
+
+        try:
+            # Pinecone list() paginates through all vectors in a namespace
+            results = self._index.list(namespace=namespace)
+
+            for ids_batch in results:
+                for vector_id in ids_batch:
+                    if "::chunk::" in vector_id:
+                        page_id = vector_id.split("::chunk::")[0]
+                        if page_id not in page_ids:
+                            page_ids[page_id] = vector_id
+
+            logger.info(
+                "pinecone_page_ids_listed",
+                namespace=namespace,
+                unique_pages=len(page_ids),
+            )
+            return page_ids
+
+        except Exception as e:
+            logger.error(
+                "pinecone_list_failed",
+                namespace=namespace,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return {}
+
+    def _cleanup_orphaned_pages(
+        self,
+        namespace: str,
+        notion_page_ids: set,
+    ) -> List[PageSyncResult]:
+        """
+        Find and delete vectors for pages that no longer exist in Notion.
+
+        Compares page IDs in Pinecone against the current Notion page tree.
+        Any page ID in Pinecone that's NOT in Notion is orphaned and gets deleted.
+
+        Args:
+            namespace: Pinecone namespace to clean
+            notion_page_ids: Set of page IDs currently in Notion
+
+        Returns:
+            List of PageSyncResult for each removed page
+        """
+        pinecone_page_ids = self._get_pinecone_page_ids(namespace)
+
+        if not pinecone_page_ids:
+            return []
+
+        # Find orphans: in Pinecone but not in Notion
+        orphaned_ids = set(pinecone_page_ids.keys()) - notion_page_ids
+
+        if not orphaned_ids:
+            logger.info(
+                "no_orphaned_pages",
+                namespace=namespace,
+            )
+            return []
+
+        logger.info(
+            "orphaned_pages_detected",
+            namespace=namespace,
+            count=len(orphaned_ids),
+            orphaned_ids=list(orphaned_ids)[:10],  # Log first 10
+        )
+
+        results = []
+        for page_id in orphaned_ids:
+            self._delete_vectors_for_page(page_id, namespace)
+            results.append(
+                PageSyncResult(
+                    page_id=page_id,
+                    title=f"[verwijderd] {page_id[:12]}…",
+                    status="removed",
+                    vectors_deleted=MAX_CHUNKS_PER_PAGE,
+                )
+            )
+
+        logger.info(
+            "orphaned_pages_cleaned",
+            namespace=namespace,
+            removed=len(results),
+        )
+
+        return results
+
     # =========================================================================
     # INTERNAL: SYNC TRACKING (SUPABASE)
     # =========================================================================
@@ -600,6 +712,7 @@ class ContentSyncService:
                             "pages_changed": sr.pages_changed,
                             "pages_synced": sr.pages_synced,
                             "pages_failed": sr.pages_failed,
+                            "pages_removed": sr.pages_removed,
                             "chunks_upserted": sr.total_chunks_upserted,
                             "error": sr.error,
                             "pages": [
