@@ -517,27 +517,52 @@ class ContentSyncService:
 
     def _get_last_sync_time(self, source_key: str) -> Optional[datetime]:
         """
-        Get the last successful sync time for a source from Supabase.
+        Get the last successful sync time for a specific source from Supabase.
+
+        Checks the details JSONB column to find a sync that actually
+        included this source_key (not just any successful sync globally).
         Returns None if never synced (triggers full sync).
         """
         if not self._supabase:
             return None
 
         try:
+            # Fetch recent successful/no_changes syncs with their details
             response = (
                 self._supabase.client
                 .table("sync_logs")
-                .select("completed_at")
-                .eq("status", "success")
+                .select("completed_at, details")
+                .in_("status", ["success", "no_changes"])
                 .order("completed_at", desc=True)
-                .limit(1)
+                .limit(10)
                 .execute()
             )
 
-            if response.data and len(response.data) > 0:
-                timestamp_str = response.data[0]["completed_at"]
-                return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            if not response.data:
+                return None
 
+            # Find the most recent sync that included this source
+            for row in response.data:
+                details = row.get("details") or {}
+                source_results = details.get("source_results", [])
+
+                for sr in source_results:
+                    if sr.get("source_key") == source_key and sr.get("status") != "failed":
+                        timestamp_str = row["completed_at"]
+                        logger.debug(
+                            "last_sync_time_found",
+                            source_key=source_key,
+                            completed_at=timestamp_str,
+                        )
+                        return datetime.fromisoformat(
+                            timestamp_str.replace("Z", "+00:00")
+                        )
+
+            # No sync found that included this source
+            logger.info(
+                "no_previous_sync_for_source",
+                source_key=source_key,
+            )
             return None
 
         except Exception as e:

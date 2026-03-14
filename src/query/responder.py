@@ -349,10 +349,10 @@ class Responder:
             response_time_seconds=round(response_time, 2)
         )
         
-        # User-friendly error message
+        # User-friendly error message (Dutch — matches bot language)
         user_message = (
-            "Sorry, I encountered an error while processing your question. "
-            "Please try again in a moment."
+            "Sorry, er is een fout opgetreden bij het verwerken van je vraag. "
+            "Probeer het later opnieuw."
         )
         
         return QueryResponse(

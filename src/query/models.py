@@ -40,8 +40,8 @@ class QueryRequest:
         if self.top_k < 1 or self.top_k > 20:
             raise ValueError("top_k must be between 1 and 20")
         
-        if self.category_filter and self.category_filter not in ["menu", "sop", "hr", "equipment", "general"]:
-            raise ValueError(f"Invalid category: {self.category_filter}")
+        # Note: category_filter is not validated against a fixed list.
+        # Documents use namespace-based organization, not categories.
 
 
 @dataclass

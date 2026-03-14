@@ -196,7 +196,7 @@ class QueryEngine:
             # Return error response instead of crashing
             return self._create_error_response(
                 question=question,
-                error_message="Failed to retrieve relevant information. Please try again.",
+                error_message="Kon geen relevante informatie ophalen. Probeer het opnieuw.",
                 query_start=query_start
             )
         
@@ -519,7 +519,7 @@ Standalone question:"""
         
         return QueryResponse(
             question=question,
-            answer="Ik heb die informatie niet in de bedrijfsdocumenten. (I don't have that information in the company documents.)",
+            answer="Ik heb die informatie niet in de bedrijfsdocumenten.",
             sources=[],
             has_answer=False,
             response_time_seconds=response_time,
@@ -553,7 +553,7 @@ Standalone question:"""
         
         return QueryResponse(
             question=question,
-            answer=f"Sorry, er is een fout opgetreden. (Sorry, an error occurred.) {error_message}",
+            answer=f"Sorry, er is een fout opgetreden. {error_message}",
             sources=[],
             has_answer=False,
             response_time_seconds=response_time,
