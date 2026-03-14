@@ -190,43 +190,49 @@ export default function SyncPage() {
 
   return (
     <Layout>
-      <div className="px-4 sm:px-0">
+      <div>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Content Sync</h1>
-            <p className="mt-2 text-gray-600">
-              Synchroniseer Notion inhoud naar de kennisbank
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={loadData}
-              disabled={loading || syncing}
-            >
-              <RefreshCw
-                className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
-              />
-              Vernieuwen
-            </Button>
-            <Button
-              onClick={() => runSync(false)}
-              disabled={syncing}
-              className="bg-gray-900 hover:bg-gray-700 text-white"
-            >
-              {syncing ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Bezig met sync...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Sync Nu
-                </>
-              )}
-            </Button>
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                Content Sync
+              </h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Synchroniseer Notion inhoud naar de kennisbank
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={loadData}
+                disabled={loading || syncing}
+                size="sm"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                />
+                Vernieuwen
+              </Button>
+              <Button
+                onClick={() => runSync(false)}
+                disabled={syncing}
+                size="sm"
+                className="bg-gray-900 hover:bg-gray-700 text-white"
+              >
+                {syncing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Bezig...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Sync Nu
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -247,27 +253,27 @@ export default function SyncPage() {
                   : "bg-yellow-50 border border-yellow-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <span className="font-semibold text-gray-900">Sync afgerond</span>
               {getStatusBadge(syncResult.status)}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-gray-500">Bronnen gecontroleerd</span>
+                <span className="text-gray-500 text-xs">Bronnen</span>
                 <p className="font-medium">{syncResult.sources_checked}</p>
               </div>
               <div>
-                <span className="text-gray-500">Pagina's gewijzigd</span>
+                <span className="text-gray-500 text-xs">Pagina's</span>
                 <p className="font-medium">{syncResult.total_pages_changed}</p>
               </div>
               <div>
-                <span className="text-gray-500">Chunks bijgewerkt</span>
+                <span className="text-gray-500 text-xs">Chunks</span>
                 <p className="font-medium">
                   {syncResult.total_chunks_upserted}
                 </p>
               </div>
               <div>
-                <span className="text-gray-500">Duur</span>
+                <span className="text-gray-500 text-xs">Duur</span>
                 <p className="font-medium">{syncResult.duration_seconds}s</p>
               </div>
             </div>
@@ -280,9 +286,11 @@ export default function SyncPage() {
                     key={sd.source_key}
                     className="flex items-center justify-between text-sm bg-white/60 rounded px-3 py-1.5"
                   >
-                    <span className="font-mono text-xs">{sd.source_key}</span>
-                    <span className="text-gray-600">
-                      {sd.pages_changed} pagina's → {sd.chunks_upserted} chunks
+                    <span className="font-mono text-xs truncate mr-2">
+                      {sd.source_key}
+                    </span>
+                    <span className="text-gray-600 text-xs whitespace-nowrap">
+                      {sd.pages_changed} pag → {sd.chunks_upserted} chunks
                     </span>
                   </div>
                 ))}
@@ -298,27 +306,28 @@ export default function SyncPage() {
         ) : (
           <div className="space-y-6">
             {/* Source Status Cards */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white shadow rounded-lg p-4 sm:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
                 Bronnen
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {Object.entries(sourceStatus).map(([key, source]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-900">{source.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">
-                        {source.namespace}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Laatste sync</p>
-                      <p className="text-sm font-medium">
-                        {formatDate(source.last_sync)}
-                      </p>
+                  <div key={key} className="bg-gray-50 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 text-sm">
+                          {source.name}
+                        </p>
+                        <p className="text-xs text-gray-400 font-mono truncate">
+                          {source.namespace}
+                        </p>
+                      </div>
+                      <div className="text-right ml-3 flex-shrink-0">
+                        <p className="text-xs text-gray-400">Laatste sync</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {formatDate(source.last_sync)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -326,8 +335,8 @@ export default function SyncPage() {
             </div>
 
             {/* Sync History */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white shadow rounded-lg p-4 sm:p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
                 Sync Geschiedenis ({historyTotal})
               </h2>
 
@@ -342,26 +351,44 @@ export default function SyncPage() {
                       key={entry.id}
                       className="border border-gray-100 rounded-lg px-4 py-3"
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      {/* Row 1: Status badge + trigger */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           {getStatusBadge(entry.status)}
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-400">
                             {entry.trigger === "manual"
                               ? "Handmatig"
                               : "Automatisch"}
                           </span>
                         </div>
-                        <span className="text-sm text-gray-500">
-                          {formatDate(entry.completed_at)}
-                        </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+
+                      {/* Row 2: Stats as inline text */}
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-1.5">
                         <span>
-                          {entry.total_pages_changed} pagina's gewijzigd
+                          <span className="font-medium text-gray-700">
+                            {entry.total_pages_changed}
+                          </span>{" "}
+                          pagina's
                         </span>
-                        <span>{entry.total_chunks_upserted} chunks</span>
-                        <span>{entry.duration_seconds}s</span>
+                        <span>
+                          <span className="font-medium text-gray-700">
+                            {entry.total_chunks_upserted}
+                          </span>{" "}
+                          chunks
+                        </span>
+                        <span>
+                          <span className="font-medium text-gray-700">
+                            {entry.duration_seconds}
+                          </span>
+                          s
+                        </span>
                       </div>
+
+                      {/* Row 3: Date on its own line, subtle */}
+                      <p className="text-xs text-gray-400">
+                        {formatDate(entry.completed_at)}
+                      </p>
                     </div>
                   ))}
                 </div>
