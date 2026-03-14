@@ -278,10 +278,14 @@ class ContentSyncService:
                 total_pages=len(all_pages),
             )
 
-            # Step 2: Orphan cleanup (DISABLED — ID format mismatch under investigation)
-            # TODO: Debug why _get_pinecone_page_ids returns IDs that don't match
-            # enumerate_pages() page IDs, then re-enable.
+            # Step 2: Orphan cleanup — find and remove vectors for deleted Notion pages
+            # Only runs on incremental syncs (not force_full, which re-ingests everything)
             orphan_results: list = []
+            if not force_full:
+                orphan_results = self._cleanup_orphaned_pages(
+                    namespace=source.namespace,
+                    notion_page_ids=notion_page_ids,
+                )
 
             # Step 3: Determine which pages changed
             if force_full:
@@ -580,6 +584,10 @@ class ContentSyncService:
         Compares page IDs in Pinecone against the current Notion page tree.
         Any page ID in Pinecone that's NOT in Notion is orphaned and gets deleted.
 
+        Safety checks:
+        - Logs sample IDs from both sides for debugging
+        - Aborts if orphan count > 50% of total (indicates a bug, not real deletions)
+
         Args:
             namespace: Pinecone namespace to clean
             notion_page_ids: Set of page IDs currently in Notion
@@ -592,6 +600,18 @@ class ContentSyncService:
         if not pinecone_page_ids:
             return []
 
+        # Debug logging: show sample IDs from both sides so we can verify format match
+        pinecone_sample = list(pinecone_page_ids.keys())[:3]
+        notion_sample = list(notion_page_ids)[:3]
+        logger.info(
+            "orphan_detection_id_comparison",
+            namespace=namespace,
+            pinecone_page_count=len(pinecone_page_ids),
+            notion_page_count=len(notion_page_ids),
+            pinecone_sample_ids=pinecone_sample,
+            notion_sample_ids=notion_sample,
+        )
+
         # Find orphans: in Pinecone but not in Notion
         orphaned_ids = set(pinecone_page_ids.keys()) - notion_page_ids
 
@@ -602,13 +622,30 @@ class ContentSyncService:
             )
             return []
 
+        # SAFETY CHECK: If more than 50% of pages look orphaned, something is wrong.
+        # This prevents a repeat of the mass-deletion incident.
+        orphan_ratio = len(orphaned_ids) / len(pinecone_page_ids)
+        if orphan_ratio > 0.5:
+            logger.error(
+                "orphan_detection_aborted_safety_threshold",
+                namespace=namespace,
+                orphan_count=len(orphaned_ids),
+                total_pinecone_pages=len(pinecone_page_ids),
+                orphan_ratio=round(orphan_ratio, 2),
+                message="More than 50% of pages look orphaned — aborting to prevent data loss. "
+                        "This likely indicates a bug in ID format comparison.",
+                sample_orphaned_ids=list(orphaned_ids)[:5],
+            )
+            return []
+
         logger.info(
             "orphaned_pages_detected",
             namespace=namespace,
             count=len(orphaned_ids),
-            orphaned_ids=list(orphaned_ids)[:10],  # Log first 10
+            orphaned_ids=list(orphaned_ids),
         )
 
+        # Delete orphaned vectors
         results = []
         for page_id in orphaned_ids:
             self._delete_vectors_for_page(page_id, namespace)
