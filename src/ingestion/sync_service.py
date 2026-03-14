@@ -278,11 +278,10 @@ class ContentSyncService:
                 total_pages=len(all_pages),
             )
 
-            # Step 2: Clean up orphaned vectors (pages deleted from Notion)
-            orphan_results = self._cleanup_orphaned_pages(
-                namespace=source.namespace,
-                notion_page_ids=notion_page_ids,
-            )
+            # Step 2: Orphan cleanup (DISABLED — ID format mismatch under investigation)
+            # TODO: Debug why _get_pinecone_page_ids returns IDs that don't match
+            # enumerate_pages() page IDs, then re-enable.
+            orphan_results: list = []
 
             # Step 3: Determine which pages changed
             if force_full:
