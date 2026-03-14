@@ -602,6 +602,15 @@ class ContentSyncService:
                             "pages_failed": sr.pages_failed,
                             "chunks_upserted": sr.total_chunks_upserted,
                             "error": sr.error,
+                            "pages": [
+                                {
+                                    "title": pr.title,
+                                    "status": pr.status,
+                                    "chunks": pr.chunks_upserted,
+                                }
+                                for pr in sr.page_results
+                                if pr.status != "skipped"
+                            ],
                         }
                         for sr in result.source_results
                     ]

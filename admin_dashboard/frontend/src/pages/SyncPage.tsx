@@ -10,6 +10,9 @@ import {
   Clock,
   AlertTriangle,
   Play,
+  ChevronDown,
+  ChevronRight,
+  FileText,
 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 
@@ -19,6 +22,29 @@ interface SourceStatus {
   name: string;
   namespace: string;
   last_sync: string | null;
+}
+
+interface PageDetail {
+  title: string;
+  status: string;
+  chunks: number;
+}
+
+interface SourceResultDetail {
+  source_key: string;
+  namespace: string;
+  status: string;
+  pages_checked: number;
+  pages_changed: number;
+  pages_synced: number;
+  pages_failed: number;
+  chunks_upserted: number;
+  error: string | null;
+  pages?: PageDetail[];
+}
+
+interface SyncDetails {
+  source_results: SourceResultDetail[];
 }
 
 interface SyncHistoryEntry {
@@ -32,7 +58,7 @@ interface SyncHistoryEntry {
   duration_seconds: number;
   started_at: string | null;
   completed_at: string | null;
-  details: Record<string, unknown> | null;
+  details: SyncDetails | null;
 }
 
 interface SourceDetail {
@@ -70,6 +96,9 @@ export default function SyncPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncRunResult | null>(null);
   const [error, setError] = useState("");
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(
+    new Set(),
+  );
 
   useEffect(() => {
     loadData();
@@ -85,7 +114,6 @@ export default function SyncPage() {
         apiClient.get("/sync/history", { params: { page: 1, page_size: 10 } }),
       ]);
 
-      // Filter out internal keys that start with _
       const sources: Record<string, SourceStatus> = {};
       for (const [key, value] of Object.entries(statusRes.data.sources)) {
         if (!key.startsWith("_")) {
@@ -114,8 +142,6 @@ export default function SyncPage() {
       });
 
       setSyncResult(response.data);
-
-      // Refresh data after sync
       await loadData();
     } catch (err: unknown) {
       if (
@@ -139,6 +165,18 @@ export default function SyncPage() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -186,6 +224,13 @@ export default function SyncPage() {
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  const getSourceStatusDot = (status: string) => {
+    if (status === "success") return "bg-green-400";
+    if (status === "no_changes") return "bg-gray-300";
+    if (status === "failed") return "bg-red-400";
+    return "bg-yellow-400";
   };
 
   return (
@@ -278,7 +323,6 @@ export default function SyncPage() {
               </div>
             </div>
 
-            {/* Per-source details */}
             {syncResult.source_details.length > 0 && (
               <div className="mt-3 space-y-1">
                 {syncResult.source_details.map((sd) => (
@@ -346,51 +390,141 @@ export default function SyncPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {history.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="border border-gray-100 rounded-lg px-4 py-3"
-                    >
-                      {/* Row 1: Status badge + trigger */}
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          {getStatusBadge(entry.status)}
-                          <span className="text-xs text-gray-400">
-                            {entry.trigger === "manual"
-                              ? "Handmatig"
-                              : "Automatisch"}
-                          </span>
-                        </div>
-                      </div>
+                  {history.map((entry) => {
+                    const isExpanded = expandedEntries.has(entry.id);
+                    const hasDetails =
+                      entry.details?.source_results &&
+                      entry.details.source_results.length > 0;
 
-                      {/* Row 2: Stats as inline text */}
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-1.5">
-                        <span>
-                          <span className="font-medium text-gray-700">
-                            {entry.total_pages_changed}
-                          </span>{" "}
-                          pagina's
-                        </span>
-                        <span>
-                          <span className="font-medium text-gray-700">
-                            {entry.total_chunks_upserted}
-                          </span>{" "}
-                          chunks
-                        </span>
-                        <span>
-                          <span className="font-medium text-gray-700">
-                            {entry.duration_seconds}
-                          </span>
-                          s
-                        </span>
-                      </div>
+                    return (
+                      <div
+                        key={entry.id}
+                        className="border border-gray-100 rounded-lg overflow-hidden"
+                      >
+                        {/* Clickable header */}
+                        <button
+                          onClick={() => hasDetails && toggleExpanded(entry.id)}
+                          className={`w-full text-left px-4 py-3 ${
+                            hasDetails
+                              ? "hover:bg-gray-50 cursor-pointer"
+                              : "cursor-default"
+                          }`}
+                        >
+                          {/* Row 1: Status + trigger + expand icon */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(entry.status)}
+                              <span className="text-xs text-gray-400">
+                                {entry.trigger === "manual"
+                                  ? "Handmatig"
+                                  : "Automatisch"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {hasDetails &&
+                                (isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                                ))}
+                            </div>
+                          </div>
 
-                      {/* Row 3: Date on its own line, subtle */}
-                      <p className="text-xs text-gray-400">
-                        {formatDate(entry.completed_at)}
-                      </p>
-                    </div>
-                  ))}
+                          {/* Row 2: Stats */}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-1.5">
+                            <span>
+                              <span className="font-medium text-gray-700">
+                                {entry.total_pages_changed}
+                              </span>{" "}
+                              pagina's
+                            </span>
+                            <span>
+                              <span className="font-medium text-gray-700">
+                                {entry.total_chunks_upserted}
+                              </span>{" "}
+                              chunks
+                            </span>
+                            <span>
+                              <span className="font-medium text-gray-700">
+                                {entry.duration_seconds}
+                              </span>
+                              s
+                            </span>
+                          </div>
+
+                          {/* Row 3: Date */}
+                          <p className="text-xs text-gray-400">
+                            {formatDate(entry.completed_at)}
+                          </p>
+                        </button>
+
+                        {/* Expanded detail panel */}
+                        {isExpanded && hasDetails && (
+                          <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                            <div className="space-y-3">
+                              {entry.details!.source_results.map((sr) => (
+                                <div key={sr.source_key}>
+                                  {/* Source header row */}
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <div
+                                      className={`h-2 w-2 rounded-full flex-shrink-0 ${getSourceStatusDot(sr.status)}`}
+                                    />
+                                    <span className="text-sm font-medium text-gray-800">
+                                      {sr.source_key}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                      {sr.pages_checked} gecontroleerd
+                                      {sr.pages_changed > 0 &&
+                                        ` · ${sr.pages_changed} gewijzigd`}
+                                      {sr.chunks_upserted > 0 &&
+                                        ` · ${sr.chunks_upserted} chunks`}
+                                    </span>
+                                  </div>
+
+                                  {/* Per-page list (if available) */}
+                                  {sr.pages && sr.pages.length > 0 && (
+                                    <div className="ml-4 space-y-1">
+                                      {sr.pages.map((page, i) => (
+                                        <div
+                                          key={i}
+                                          className="flex items-center gap-2 text-xs"
+                                        >
+                                          <FileText className="h-3 w-3 text-gray-300 flex-shrink-0" />
+                                          <span className="text-gray-700 truncate">
+                                            {page.title}
+                                          </span>
+                                          {page.chunks > 0 && (
+                                            <span className="text-gray-400 whitespace-nowrap">
+                                              {page.chunks} chunks
+                                            </span>
+                                          )}
+                                          {page.status === "failed" && (
+                                            <Badge
+                                              variant="destructive"
+                                              className="text-[10px] px-1 py-0"
+                                            >
+                                              mislukt
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Error message if source failed */}
+                                  {sr.error && (
+                                    <p className="ml-4 text-xs text-red-500 mt-1">
+                                      {sr.error}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
