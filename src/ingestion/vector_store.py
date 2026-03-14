@@ -184,11 +184,40 @@ def create_storage_context(config: Config, clear_namespace: bool = False) -> Sto
                     vectors_to_delete=namespace_vectors
                 )
                 index.delete(delete_all=True, namespace=config.pinecone_namespace)
+                
+                # Wait for delete to propagate — prevents race condition
+                # where freshly upserted vectors get wiped by a pending delete
                 logger.info(
-                    "pinecone_namespace_cleared",
+                    "pinecone_waiting_for_delete",
                     namespace=config.pinecone_namespace,
-                    status="success"
+                    message="Waiting for delete to propagate..."
                 )
+                for attempt in range(10):
+                    time.sleep(3)
+                    stats_check = index.describe_index_stats()
+                    remaining = stats_check.get('namespaces', {}).get(
+                        config.pinecone_namespace, {}
+                    ).get('vector_count', 0)
+                    if remaining == 0:
+                        logger.info(
+                            "pinecone_namespace_cleared",
+                            namespace=config.pinecone_namespace,
+                            status="success",
+                            wait_attempts=attempt + 1
+                        )
+                        break
+                    logger.debug(
+                        "pinecone_delete_still_propagating",
+                        remaining_vectors=remaining,
+                        attempt=attempt + 1
+                    )
+                else:
+                    logger.warning(
+                        "pinecone_delete_slow_propagation",
+                        namespace=config.pinecone_namespace,
+                        remaining_vectors=remaining,
+                        message="Proceeding anyway after 30s wait"
+                    )
             else:
                 logger.info(
                     "pinecone_namespace_empty",
