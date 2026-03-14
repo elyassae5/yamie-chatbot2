@@ -1,15 +1,11 @@
 import os
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from dotenv import load_dotenv
 
 load_dotenv()
 
 @dataclass
 class Config:
-    data_dir: str = "./data"
-    supported_extensions: list[str] = field(default_factory=lambda: [".docx"])
-
     # OpenAI
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = "text-embedding-3-large"
@@ -37,7 +33,7 @@ class Config:
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
     llm_max_tokens: int = 800               # Max response length
 
-     # Timeout configuration
+    # Timeout configuration
     openai_timeout_seconds: int = 30  # Max 30s for OpenAI API calls
     pinecone_timeout_seconds: int = 10  # Max 10s for Pinecone queries
     redis_timeout_seconds: int = 5  # Max 5s for Redis operations
@@ -57,7 +53,6 @@ class Config:
     conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
     max_conversation_turns: int = 4  # Remember last N Q&A pairs
 
-     
     def validate(self):
         """Validate all configuration"""
         errors = []
@@ -96,7 +91,6 @@ class Config:
 
     def display(self):
         print("\n Config:")
-        print(f"  Data dir: {self.data_dir}")
         print(f"  Embedding model: {self.embedding_model}")
         print(f"  Chunk size: {self.chunk_size}")
         print(f"  Chunk overlap: {self.chunk_overlap}")
