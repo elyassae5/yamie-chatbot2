@@ -254,7 +254,7 @@ async def query(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to process query: {str(e)}"
+            detail="Failed to process query. Please try again later."
         )
 
 
@@ -288,4 +288,4 @@ async def get_stats():
             error=str(e),
             error_type=type(e).__name__
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve system stats.")

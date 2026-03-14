@@ -202,7 +202,7 @@ async def global_exception_handler(request, exc):
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": str(exc)
+            "detail": "An unexpected error occurred. Please try again later."
         }
     )
 

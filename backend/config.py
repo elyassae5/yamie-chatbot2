@@ -39,9 +39,12 @@ class BackendConfig:
     def __post_init__(self):
         """Set defaults after initialization."""
         if self.cors_origins is None:
-            # Allow all origins for development
-            # TODO: Restrict in production!
-            self.cors_origins = ["*"]
+            self.cors_origins = [
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
+            ]
     
     # Core RAG configuration (reuse existing!)
     @property

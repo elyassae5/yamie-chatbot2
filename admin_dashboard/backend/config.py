@@ -23,11 +23,17 @@ class AdminConfig:
     cors_origins: list = None
     
     # JWT Authentication
-    jwt_secret_key: str = os.getenv("ADMIN_JWT_SECRET", "your-secret-key-change-this-in-production")
+    jwt_secret_key: str = os.getenv("ADMIN_JWT_SECRET", "")
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60 * 24  # 24 hours
     
     def __post_init__(self):
+        if not self.jwt_secret_key:
+            raise ValueError(
+                "ADMIN_JWT_SECRET environment variable is not set. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        
         if self.cors_origins is None:
             self.cors_origins = [
                 "http://localhost:5173",
