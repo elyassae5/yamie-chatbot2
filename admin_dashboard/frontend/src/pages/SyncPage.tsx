@@ -334,7 +334,7 @@ export default function SyncPage() {
                       {sd.source_key}
                     </span>
                     <span className="text-gray-600 text-xs whitespace-nowrap">
-                      {sd.pages_changed} pag → {sd.chunks_upserted} chunks
+                      {sd.pages_changed} pagina's bijgewerkt
                     </span>
                   </div>
                 ))}
@@ -436,13 +436,7 @@ export default function SyncPage() {
                               <span className="font-medium text-gray-700">
                                 {entry.total_pages_changed}
                               </span>{" "}
-                              pagina's
-                            </span>
-                            <span>
-                              <span className="font-medium text-gray-700">
-                                {entry.total_chunks_upserted}
-                              </span>{" "}
-                              chunks
+                              pagina's bijgewerkt
                             </span>
                             <span>
                               <span className="font-medium text-gray-700">
@@ -476,8 +470,6 @@ export default function SyncPage() {
                                       {sr.pages_checked} gecontroleerd
                                       {sr.pages_changed > 0 &&
                                         ` · ${sr.pages_changed} gewijzigd`}
-                                      {sr.chunks_upserted > 0 &&
-                                        ` · ${sr.chunks_upserted} chunks`}
                                     </span>
                                   </div>
 
@@ -493,11 +485,6 @@ export default function SyncPage() {
                                           <span className="text-gray-700 truncate">
                                             {page.title}
                                           </span>
-                                          {page.chunks > 0 && (
-                                            <span className="text-gray-400 whitespace-nowrap">
-                                              {page.chunks} chunks
-                                            </span>
-                                          )}
                                           {page.status === "failed" && (
                                             <Badge
                                               variant="destructive"
