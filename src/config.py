@@ -25,17 +25,17 @@ class Config:
     notion_api_key: str = os.getenv("NOTION_API_KEY", "")
 
     # Chunking
-    chunk_size: int = 500
-    chunk_overlap: int = 150
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
 
     # Query/Retrieval Settings
     query_top_k: int = 15                  # Number of chunks to retrieve
-    query_similarity_threshold: float = 0.0
+    query_similarity_threshold: float = 0.35
     
     # LLM Settings
     llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
-    llm_max_tokens: int = 450               # Max response length
+    llm_max_tokens: int = 800               # Max response length
 
      # Timeout configuration
     openai_timeout_seconds: int = 30  # Max 30s for OpenAI API calls

@@ -105,68 +105,102 @@ def debug_query(question: str, export: bool = False) -> dict:
         top_k=config.query_top_k,
     )
     
+    # Retriever returns ALL top_k chunks (no threshold filtering)
+    # Threshold filtering happens in the query engine before sending to LLM
+    all_chunks = retriever.retrieve(request)
+    
+    # Split into passed vs filtered using the configured threshold
+    threshold = config.query_similarity_threshold
+    passed_chunks = [c for c in all_chunks if c.similarity_score >= threshold]
+    filtered_chunks = [c for c in all_chunks if c.similarity_score < threshold]
+    
     print(f"\n  Top-K: {request.top_k}")
-    print(f"  Similarity Threshold: {config.query_similarity_threshold}")
-    
-    chunks = retriever.retrieve(request)
-    
-    print(f"\n  ✅ Retrieved {len(chunks)} chunks")
+    print(f"  Similarity Threshold: {threshold}")
+    print(f"\n  ✅ Retrieved {len(all_chunks)} total chunks")
+    print(f"     ├── {len(passed_chunks)} passed threshold (→ sent to LLM)")
+    print(f"     └── {len(filtered_chunks)} below threshold (→ filtered out)")
     
     # Display each chunk in detail
-    print_subheader("3. RETRIEVED CHUNKS (FULL DETAIL)")
+    print_subheader("3. RETRIEVED CHUNKS — PASSED THRESHOLD (sent to LLM)")
     
     chunks_data = []
     
-    for i, chunk in enumerate(chunks, 1):
+    def display_chunk(chunk, index, total, label=""):
+        """Display a single chunk with full detail."""
         print(f"\n{'━' * 80}")
-        print(f"  CHUNK {i}/{len(chunks)}")
+        print(f"  {label}CHUNK {index}/{total}")
         print(f"{'━' * 80}")
         
-        # Source info
         print(f"\n  📁 SOURCE PATH:")
         print(f"     {chunk.source}")
         
-        # Metadata
         print(f"\n  📋 METADATA:")
         print(f"     Namespace: {chunk.metadata.get('namespace', 'N/A')}")
         print(f"     Source Type: {chunk.metadata.get('source_type', 'N/A')}")
         print(f"     Page Title: {chunk.metadata.get('page_title', 'N/A')}")
         print(f"     Category: {chunk.category}")
         
-        # Score
         print(f"\n  📊 SIMILARITY SCORE: {chunk.similarity_score:.4f}")
         
-        # Full text
         print(f"\n  📄 FULL CHUNK TEXT ({len(chunk.text)} chars):")
         print(f"  {'─' * 76}")
-        # Indent each line of the text
         for line in chunk.text.split('\n'):
             print(f"     {line}")
         print(f"  {'─' * 76}")
-        
-        # Collect for export
-        chunks_data.append({
-            "rank": i,
-            "source_path": chunk.source,
-            "similarity_score": chunk.similarity_score,
-            "category": chunk.category,
-            "text": chunk.text,
-            "text_length": len(chunk.text),
-            "metadata": {
-                "namespace": chunk.metadata.get('namespace'),
-                "source_type": chunk.metadata.get('source_type'),
-                "page_title": chunk.metadata.get('page_title'),
-                "page_id": chunk.metadata.get('page_id'),
-                "page_url": chunk.metadata.get('page_url'),
-            }
-        })
+    
+    if passed_chunks:
+        for i, chunk in enumerate(passed_chunks, 1):
+            display_chunk(chunk, i, len(passed_chunks), "✅ ")
+            chunks_data.append({
+                "rank": i,
+                "source_path": chunk.source,
+                "similarity_score": chunk.similarity_score,
+                "category": chunk.category,
+                "text": chunk.text,
+                "text_length": len(chunk.text),
+                "passed_threshold": True,
+                "metadata": {
+                    "namespace": chunk.metadata.get('namespace'),
+                    "source_type": chunk.metadata.get('source_type'),
+                    "page_title": chunk.metadata.get('page_title'),
+                    "page_id": chunk.metadata.get('page_id'),
+                    "page_url": chunk.metadata.get('page_url'),
+                }
+            })
+    else:
+        print(f"\n  ⚠️ No chunks passed the similarity threshold ({threshold})")
+    
+    # Show filtered chunks
+    print_subheader(f"4. FILTERED CHUNKS — BELOW THRESHOLD < {threshold} (NOT sent to LLM)")
+    
+    if filtered_chunks:
+        for i, chunk in enumerate(filtered_chunks, 1):
+            display_chunk(chunk, i, len(filtered_chunks), "❌ ")
+            chunks_data.append({
+                "rank": len(passed_chunks) + i,
+                "source_path": chunk.source,
+                "similarity_score": chunk.similarity_score,
+                "category": chunk.category,
+                "text": chunk.text,
+                "text_length": len(chunk.text),
+                "passed_threshold": False,
+                "metadata": {
+                    "namespace": chunk.metadata.get('namespace'),
+                    "source_type": chunk.metadata.get('source_type'),
+                    "page_title": chunk.metadata.get('page_title'),
+                    "page_id": chunk.metadata.get('page_id'),
+                    "page_url": chunk.metadata.get('page_url'),
+                }
+            })
+    else:
+        print(f"\n  ✅ All chunks passed the threshold — nothing filtered out")
     
     # Show what would be sent to LLM
-    print_subheader("4. CONTEXT FOR LLM")
+    print_subheader("5. CONTEXT FOR LLM")
     
     context_text = "\n\n---\n\n".join([
         f"[Source: {c.source}]\n{c.text}" 
-        for c in chunks
+        for c in passed_chunks
     ])
     
     print(f"\n  Total context length: {len(context_text)} characters")
@@ -182,19 +216,28 @@ def debug_query(question: str, export: bool = False) -> dict:
     print(f"  {'─' * 76}")
     
     # Summary
-    print_subheader("5. SUMMARY")
+    print_subheader("6. SUMMARY")
     
-    unique_sources = list(set(c.source for c in chunks))
-    avg_score = sum(c.similarity_score for c in chunks) / len(chunks) if chunks else 0
+    passed_sources = list(set(c.source for c in passed_chunks))
+    all_sources = list(set(c.source for c in all_chunks))
+    avg_passed = sum(c.similarity_score for c in passed_chunks) / len(passed_chunks) if passed_chunks else 0
+    avg_all = sum(c.similarity_score for c in all_chunks) / len(all_chunks) if all_chunks else 0
     
-    print(f"\n  Total Chunks: {len(chunks)}")
-    print(f"  Unique Sources: {len(unique_sources)}")
-    print(f"  Average Similarity: {avg_score:.4f}")
-    print(f"  Score Range: {min(c.similarity_score for c in chunks):.4f} - {max(c.similarity_score for c in chunks):.4f}")
+    print(f"\n  Total Retrieved: {len(all_chunks)}")
+    print(f"  Passed Threshold: {len(passed_chunks)}")
+    print(f"  Filtered Out: {len(filtered_chunks)}")
+    print(f"  Threshold: {threshold}")
+    print(f"  Avg Score (passed): {avg_passed:.4f}")
+    print(f"  Avg Score (all): {avg_all:.4f}")
+    if all_chunks:
+        print(f"  Score Range (all): {min(c.similarity_score for c in all_chunks):.4f} - {max(c.similarity_score for c in all_chunks):.4f}")
     
-    print(f"\n  📁 Sources Used:")
-    for src in unique_sources:
-        print(f"     • {src}")
+    if passed_sources:
+        print(f"\n  📁 Sources Sent to LLM:")
+        for src in passed_sources:
+            print(f"     • {src}")
+    else:
+        print(f"\n  ⚠️ No chunks passed threshold ({threshold}) — LLM received no context")
     
     # Build export data
     export_data = {
@@ -204,14 +247,17 @@ def debug_query(question: str, export: bool = False) -> dict:
             "index": config.pinecone_index_name,
             "namespaces": stats.get('active_namespaces', []),
             "top_k": request.top_k,
-            "similarity_threshold": config.query_similarity_threshold,
+            "similarity_threshold": threshold,
             "embedding_model": config.embedding_model,
         },
         "results": {
-            "chunks_retrieved": len(chunks),
-            "unique_sources": len(unique_sources),
-            "average_similarity": avg_score,
-            "sources": unique_sources,
+            "total_retrieved": len(all_chunks),
+            "passed_threshold": len(passed_chunks),
+            "filtered_out": len(filtered_chunks),
+            "sources_sent_to_llm": passed_sources,
+            "all_sources": all_sources,
+            "avg_score_passed": avg_passed,
+            "avg_score_all": avg_all,
         },
         "chunks": chunks_data,
         "context_for_llm": {

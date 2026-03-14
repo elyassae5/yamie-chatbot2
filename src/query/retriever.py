@@ -327,7 +327,9 @@ class Retriever:
     def _process_nodes(self, nodes, request: QueryRequest) -> List[RetrievedChunk]:
         """
         Process raw nodes from Pinecone into RetrievedChunk objects.
-        Applies filtering based on similarity threshold and category.
+        Applies category filtering only. Similarity threshold filtering
+        is handled by the query engine, so all consumers (debug tools,
+        admin dashboard, API) can access the full retrieval results.
         """
         chunks = []
         filtered_count = 0
@@ -344,17 +346,6 @@ class Retriever:
             category = node.metadata.get('category', 'general')
             similarity_score = node.score if node.score is not None else 0.0
             namespace = node.metadata.get('_namespace', 'unknown')
-            
-            # Apply similarity threshold filter
-            if similarity_score < self.config.query_similarity_threshold:
-                logger.debug(
-                    "chunk_filtered_by_threshold",
-                    source=source,
-                    score=round(similarity_score, 3),
-                    threshold=self.config.query_similarity_threshold
-                )
-                filtered_count += 1
-                continue
             
             # Apply category filter if specified
             if request.category_filter and category != request.category_filter:

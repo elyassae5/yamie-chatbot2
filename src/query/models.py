@@ -52,9 +52,10 @@ class QueryResponse:
     """
     question: str                      # Original question
     answer: str                        # Generated answer
-    sources: List[RetrievedChunk]      # Chunks used to generate answer
+    sources: List[RetrievedChunk]      # Chunks that passed threshold (used for answer)
     has_answer: bool                   # True if answer found, False if "I don't know"
     response_time_seconds: float       # How long it took to generate
+    filtered_chunks: List[RetrievedChunk] = field(default_factory=list)  # Chunks below threshold (for debugging)
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     
     def get_source_names(self) -> List[str]:

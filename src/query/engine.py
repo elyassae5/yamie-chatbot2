@@ -180,10 +180,10 @@ class QueryEngine:
         )
         
         try:
-            chunks = self.retriever.retrieve(request)
+            all_chunks = self.retriever.retrieve(request)
             logger.info(
                 "retrieval_completed",
-                chunks_retrieved=len(chunks) if chunks else 0,
+                chunks_retrieved=len(all_chunks) if all_chunks else 0,
                 query=search_question
             )
         except Exception as e:
@@ -198,6 +198,19 @@ class QueryEngine:
                 question=question,
                 error_message="Failed to retrieve relevant information. Please try again.",
                 query_start=query_start
+            )
+        
+        # Apply similarity threshold — split into passed vs filtered
+        threshold = self.config.query_similarity_threshold
+        chunks = [c for c in all_chunks if c.similarity_score >= threshold]
+        filtered_chunks = [c for c in all_chunks if c.similarity_score < threshold]
+        
+        if filtered_chunks:
+            logger.info(
+                "chunks_filtered_by_threshold",
+                passed=len(chunks),
+                filtered=len(filtered_chunks),
+                threshold=threshold
             )
         
         # Handle no results
@@ -268,8 +281,12 @@ class QueryEngine:
             response_time_seconds=total_time,
             has_answer=response.has_answer,
             chunks_retrieved=len(chunks),
+            chunks_filtered=len(filtered_chunks),
             sources_count=len(response.sources)
         )
+        
+        # Attach filtered chunks for debugging/admin visibility
+        response.filtered_chunks = filtered_chunks
         
         return response
     
