@@ -436,9 +436,16 @@ class ContentSyncService:
             nodes = self.chunker.chunk(documents)
 
             # Step D: Assign deterministic IDs
+            # CRITICAL: We must also clear node.relationships because LlamaIndex
+            # prepends the parent document's ref_doc_id to the Pinecone vector ID
+            # as "{ref_doc_id}#{node_id}". Without clearing this, our delete code
+            # (which generates "{page_id}::chunk::0004") never matches, causing:
+            #   1. Duplicates on every sync (deletes miss, upserts pile up)
+            #   2. Orphan detection seeing 0 matches (different ID formats)
             for i, node in enumerate(nodes):
                 node.id_ = self._make_vector_id(page_id, i)
                 node.metadata["notion_page_id"] = page_id
+                node.relationships = {}  # Prevent ref_doc_id prefix in Pinecone ID
 
             # Step E: Upsert via LlamaIndex (handles embedding + Pinecone metadata format)
             vector_store = PineconeVectorStore(
