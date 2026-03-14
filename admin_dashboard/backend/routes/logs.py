@@ -213,14 +213,14 @@ async def get_logs_summary(
         )
         queries_today = today_res.count or 0
 
-        # ── 4. Average response time (single column only) ─────────────────────
-        rt_res = client.table("query_logs").select("response_time_seconds").execute()
+        # ── 4. Average response time (stored as ms in Supabase) ──────────────
+        rt_res = client.table("query_logs").select("response_time_ms").execute()
         times = [
-            row["response_time_seconds"]
+            row["response_time_ms"]
             for row in rt_res.data
-            if row.get("response_time_seconds") is not None
+            if row.get("response_time_ms") is not None
         ]
-        avg_response_time = sum(times) / len(times) if times else 0
+        avg_response_time = (sum(times) / len(times) / 1000) if times else 0  # Convert ms → seconds
 
         # ── 5. Unique users (single column only) ─────────────────────────────
         users_res = client.table("query_logs").select("user_id").execute()
