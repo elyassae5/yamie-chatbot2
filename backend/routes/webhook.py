@@ -12,6 +12,7 @@ Flow:
 
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from fastapi.responses import Response as FastAPIResponse
+import re
 import structlog
 import os
 from twilio.twiml.messaging_response import MessagingResponse
@@ -180,10 +181,21 @@ def process_query_background(from_number: str, incoming_message: str):
             user_id=from_number,  # Use phone number as user_id for conversation memory
         )
         
-        # Format answer for WhatsApp (max 1600 chars to be safe with Twilio)
+        # Format answer for WhatsApp
         answer = query_response.answer
+        
+        # Convert markdown to WhatsApp format
+        # **bold** → *bold* (WhatsApp uses single asterisks)
+        answer = re.sub(r'\*\*(.+?)\*\*', r'*\1*', answer)
+        # Remove source references like 📄 [document name] — admin dashboard has this
+        answer = re.sub(r'\s*📄\s*\[.*?\]', '', answer)
+        # Clean up any trailing whitespace from removed references
+        answer = re.sub(r'\n\s*\n\s*\n', '\n\n', answer).strip()
+        
+        # Max 1600 chars for WhatsApp via Twilio
         if len(answer) > 1600:
-            answer = answer[:1600] + "\n\n[Antwoord ingekort - vraag voor meer details]"
+            suffix = "\n\n[Antwoord ingekort - vraag voor meer details]"
+            answer = answer[:1600 - len(suffix)] + suffix
         
         logger.info(
             "background_query_completed",
