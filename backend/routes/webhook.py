@@ -194,7 +194,7 @@ def process_query_background(from_number: str, incoming_message: str):
         
         # Max 1600 chars for WhatsApp via Twilio
         if len(answer) > 1600:
-            suffix = "\n\n[Antwoord ingekort - vraag voor meer details]"
+            suffix = "\n\nDit antwoord is ingekort. Stel een specifiekere vraag voor meer details."
             answer = answer[:1600 - len(suffix)] + suffix
         
         logger.info(

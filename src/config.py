@@ -25,11 +25,11 @@ class Config:
     chunk_overlap: int = 200
 
     # Query/Retrieval Settings
-    query_top_k: int = 10                  # Number of chunks to retrieve
+    query_top_k: int = 15                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.35
     
     # LLM Settings
-    llm_model: str = "gpt-4o-mini"               # OpenAI model for generation
+    llm_model: str = "gpt-4o"                    # OpenAI model for generation
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
     llm_max_tokens: int = 800               # Max response length
 
