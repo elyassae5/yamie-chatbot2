@@ -25,7 +25,7 @@ class Config:
     chunk_overlap: int = 200
 
     # Query/Retrieval Settings
-    query_top_k: int = 15                  # Number of chunks to retrieve
+    query_top_k: int = 10                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.35
     
     # LLM Settings

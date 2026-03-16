@@ -475,7 +475,10 @@ export default function LogsPage() {
             <DialogTitle>Vraag Detail</DialogTitle>
           </DialogHeader>
           {selectedLog && (
-            <div className="space-y-4 text-sm">
+            <div
+              className="space-y-4 text-sm overflow-hidden"
+              style={{ wordBreak: "break-word" }}
+            >
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="font-medium text-gray-500">Tijdstip</p>
@@ -626,7 +629,7 @@ export default function LogsPage() {
                                     </p>
                                   )}
                                   <div className="mt-1">
-                                    <p className="text-xs text-gray-600 whitespace-pre-wrap break-words">
+                                    <p className="text-xs text-gray-600 whitespace-pre-line">
                                       {isExpanded
                                         ? fullText
                                         : fullText.length > 150
@@ -698,7 +701,7 @@ export default function LogsPage() {
                                     </p>
                                   )}
                                   <div className="mt-1">
-                                    <p className="text-xs text-gray-500 whitespace-pre-wrap break-words">
+                                    <p className="text-xs text-gray-500 whitespace-pre-line">
                                       {isExpanded
                                         ? fullText
                                         : fullText.length > 150
