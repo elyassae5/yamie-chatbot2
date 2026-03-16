@@ -334,20 +334,23 @@ class QueryEngine:
             for turn in recent_history
         ])
         
-        # Create transformation prompt
-        prompt = f"""Given this recent conversation (HISTORY):
-
+        # Create transformation prompt — strict two-step approach
+        prompt = f"""CONVERSATION HISTORY:
 {history_text}
 
-The user now asks: "{question}"
+NEW QUESTION: "{question}"
 
-If this question refers to something from the conversation history 
-(EITHER TO ONE OF THE USER'S PREVIOUS QUESTIONS OR TO A PART OF THE ASSISTANT'S ANSWERS [eg. its last one]), 
-rewrite it as a standalone question that can be understood without the history.
+TASK: Determine if the NEW QUESTION is a follow-up to the conversation, or a completely new topic.
 
-If the question is already standalone and clear, return it exactly as-is.
+FOLLOW-UP indicators: uses words like "dat", "het", "die", "daar", "meer", "ook", "verder", "hetzelfde", or clearly refers to something from the previous conversation.
 
-Standalone question:"""
+NEW TOPIC indicators: the question is about a different subject, mentions a specific topic not discussed before, or is fully understandable on its own.
+
+RULES:
+- If NEW TOPIC: return the question EXACTLY as the user typed it. Do NOT add context from the history. Do NOT rephrase.
+- If FOLLOW-UP: rewrite as a standalone question by adding the missing context from the history.
+
+Answer with ONLY the question, nothing else:"""
         
         try:
             # Use GPT-4o-mini for fast, cheap transformation
