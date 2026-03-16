@@ -219,7 +219,7 @@ def process_query_background(from_number: str, incoming_message: str):
                     for chunk in query_response.sources
                 ],
                 chunks_retrieved=len(query_response.sources),
-                client_ip="whatsapp_webhook_background",  # Indicate it came from background processing
+                client_ip="whatsapp_webhook_background",
                 model=config.llm_model,
                 config_top_k=config.query_top_k,
                 config_chunk_size=config.chunk_size,
@@ -229,6 +229,31 @@ def process_query_background(from_number: str, incoming_message: str):
                 config_max_tokens=config.llm_max_tokens,
                 config_embedding_model=config.embedding_model,
                 system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+                debug_info={
+                    "threshold": config.query_similarity_threshold,
+                    "chunks_passed": len(query_response.sources),
+                    "chunks_filtered": len(query_response.filtered_chunks),
+                    "passed": [
+                        {
+                            "source": chunk.source,
+                            "namespace": chunk.category,
+                            "score": round(chunk.similarity_score, 3),
+                            "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                            "status": "passed",
+                        }
+                        for chunk in query_response.sources
+                    ],
+                    "filtered": [
+                        {
+                            "source": chunk.source,
+                            "namespace": chunk.category,
+                            "score": round(chunk.similarity_score, 3),
+                            "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                            "status": "filtered",
+                        }
+                        for chunk in query_response.filtered_chunks
+                    ],
+                },
             )
             
             logger.info("background_query_logged_to_supabase", from_number=from_number[:18] + "***")

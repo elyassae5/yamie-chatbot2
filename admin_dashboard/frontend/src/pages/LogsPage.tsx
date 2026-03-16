@@ -17,10 +17,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+} from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { getWhitelist } from "@/api/whitelist";
 import ReactMarkdown from "react-markdown";
+
+interface DebugChunk {
+  source: string;
+  namespace: string;
+  score: number;
+  text_preview: string;
+  status: "passed" | "filtered";
+}
+
+interface DebugInfo {
+  threshold: number;
+  chunks_passed: number;
+  chunks_filtered: number;
+  passed: DebugChunk[];
+  filtered: DebugChunk[];
+}
 
 interface LogEntry {
   id: string;
@@ -37,6 +61,7 @@ interface LogEntry {
   total_tokens: number | null;
   error: string | null;
   system_prompt_version: string | null;
+  debug_info: DebugInfo | null;
 }
 
 interface LogsResponse {
@@ -70,6 +95,7 @@ export default function LogsPage() {
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [phoneToName, setPhoneToName] = useState<Record<string, string>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const pageSize = 20;
 
   useEffect(() => {
@@ -434,7 +460,13 @@ export default function LogsPage() {
       </div>
 
       {/* Detail modal */}
-      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+      <Dialog
+        open={!!selectedLog}
+        onOpenChange={() => {
+          setSelectedLog(null);
+          setShowDebug(false);
+        }}
+      >
         <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Vraag Detail</DialogTitle>
@@ -522,6 +554,108 @@ export default function LogsPage() {
                   <div className="bg-red-50 rounded p-3 text-red-700">
                     {selectedLog.error}
                   </div>
+                </div>
+              )}
+
+              {/* Retrieval Debug Panel */}
+              {selectedLog.debug_info && (
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setShowDebug(!showDebug)}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 text-sm">
+                        Retrieval Debug
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {selectedLog.debug_info.chunks_passed} passed ·{" "}
+                        {selectedLog.debug_info.chunks_filtered} filtered ·
+                        drempel {selectedLog.debug_info.threshold}
+                      </span>
+                    </div>
+                    {showDebug ? (
+                      <ChevronUp className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
+
+                  {showDebug && (
+                    <div className="p-3 space-y-3 max-h-[400px] overflow-y-auto">
+                      {/* Passed chunks */}
+                      {selectedLog.debug_info.passed.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-green-700 mb-2">
+                            ✅ Passed ({selectedLog.debug_info.passed.length})
+                          </p>
+                          <div className="space-y-2">
+                            {selectedLog.debug_info.passed.map((chunk, i) => (
+                              <div
+                                key={`passed-${i}`}
+                                className="border-l-2 border-green-400 pl-3 py-1"
+                              >
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-mono font-bold text-green-700">
+                                    {chunk.score.toFixed(3)}
+                                  </span>
+                                  <span className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded">
+                                    {chunk.namespace}
+                                  </span>
+                                  <span className="text-xs text-gray-500 truncate max-w-[250px]">
+                                    {chunk.source}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                                  {chunk.text_preview}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Filtered chunks */}
+                      {selectedLog.debug_info.filtered.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-red-600 mb-2">
+                            ❌ Filtered (
+                            {selectedLog.debug_info.filtered.length})
+                          </p>
+                          <div className="space-y-2">
+                            {selectedLog.debug_info.filtered.map((chunk, i) => (
+                              <div
+                                key={`filtered-${i}`}
+                                className="border-l-2 border-red-300 pl-3 py-1 opacity-70"
+                              >
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-mono font-bold text-red-600">
+                                    {chunk.score.toFixed(3)}
+                                  </span>
+                                  <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
+                                    {chunk.namespace}
+                                  </span>
+                                  <span className="text-xs text-gray-500 truncate max-w-[250px]">
+                                    {chunk.source}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
+                                  {chunk.text_preview}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedLog.debug_info.passed.length === 0 &&
+                        selectedLog.debug_info.filtered.length === 0 && (
+                          <p className="text-xs text-gray-500 italic">
+                            Geen retrieval data beschikbaar
+                          </p>
+                        )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

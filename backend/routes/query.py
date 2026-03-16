@@ -121,35 +121,37 @@ async def query(
             top_k=request.top_k,
         )
         
-        # Build debug info if requested
-        debug_info = None
-        if request.debug:
-            debug_info = {
-                "original_question": original_question,
-                "transformed_question": response.question if response.question != original_question else None,
-                "chunks_retrieved": len(response.sources),
-                "top_chunks": [
-                    {
-                        "source": chunk.source,
-                        "category": chunk.category,
-                        "score": round(chunk.similarity_score, 3),
-                        "text_preview": chunk.text[:300] + "..." if len(chunk.text) > 300 else chunk.text
-                    }
-                    for chunk in response.sources[:3]  # Top 3 chunks
-                ],
-                "all_sources": [
-                    {
-                        "source": chunk.source,
-                        "score": round(chunk.similarity_score, 3)
-                    }
-                    for chunk in response.sources
-                ]
-            }
-            logger.debug(
-                "debug_info_generated",
-                chunks_retrieved=len(response.sources),
-                top_chunks_count=min(3, len(response.sources))
-            )
+        # Build debug info — ALWAYS saved to Supabase for admin debug view.
+        # Includes both passed and filtered chunks so admins can see
+        # the full retrieval picture for any query.
+        retrieval_debug = {
+            "threshold": get_config().query_similarity_threshold,
+            "chunks_passed": len(response.sources),
+            "chunks_filtered": len(response.filtered_chunks),
+            "passed": [
+                {
+                    "source": chunk.source,
+                    "namespace": chunk.category,
+                    "score": round(chunk.similarity_score, 3),
+                    "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                    "status": "passed",
+                }
+                for chunk in response.sources
+            ],
+            "filtered": [
+                {
+                    "source": chunk.source,
+                    "namespace": chunk.category,
+                    "score": round(chunk.similarity_score, 3),
+                    "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                    "status": "filtered",
+                }
+                for chunk in response.filtered_chunks
+            ],
+        }
+        
+        # For the API response, only include debug_info if explicitly requested
+        api_debug_info = retrieval_debug if request.debug else None
         
         # Convert to API response model
         api_response = QueryResponse(
@@ -168,7 +170,7 @@ async def query(
             response_time_seconds=response.response_time_seconds,
             user_id=request.user_id,
             timestamp=datetime.utcnow(),
-            debug_info=debug_info  # ← Include debug info!
+            debug_info=api_debug_info  # Only in API response when debug=true
         )
         
         logger.info(
@@ -215,7 +217,7 @@ async def query(
                 config_max_tokens=config.llm_max_tokens,
                 config_embedding_model=config.embedding_model,
                 system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
-                debug_info=debug_info if request.debug else None,
+                debug_info=retrieval_debug,  # Always save for admin debug view
             )
             
             logger.info(
