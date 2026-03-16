@@ -96,6 +96,7 @@ export default function LogsPage() {
   const [phoneToName, setPhoneToName] = useState<Record<string, string>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
   const pageSize = 20;
 
   useEffect(() => {
@@ -465,6 +466,7 @@ export default function LogsPage() {
         onOpenChange={() => {
           setSelectedLog(null);
           setShowDebug(false);
+          setExpandedChunks(new Set());
         }}
       >
         <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -557,21 +559,21 @@ export default function LogsPage() {
                 </div>
               )}
 
-              {/* Retrieval Debug Panel */}
+              {/* Bronnen & Context Panel */}
               {selectedLog.debug_info && (
                 <div className="border rounded-lg overflow-hidden">
                   <button
                     onClick={() => setShowDebug(!showDebug)}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-700 text-sm">
-                        Retrieval Debug
+                        Bronnen & context
                       </span>
                       <span className="text-xs text-gray-500">
-                        {selectedLog.debug_info.chunks_passed} passed ·{" "}
-                        {selectedLog.debug_info.chunks_filtered} filtered ·
-                        drempel {selectedLog.debug_info.threshold}
+                        {selectedLog.debug_info.chunks_passed} gebruikt ·{" "}
+                        {selectedLog.debug_info.chunks_filtered} genegeerd ·
+                        score-drempel {selectedLog.debug_info.threshold}
                       </span>
                     </div>
                     {showDebug ? (
@@ -582,35 +584,74 @@ export default function LogsPage() {
                   </button>
 
                   {showDebug && (
-                    <div className="p-3 space-y-3 max-h-[400px] overflow-y-auto">
-                      {/* Passed chunks */}
+                    <div className="p-3 space-y-3 max-h-[500px] overflow-y-auto">
+                      {/* Used chunks */}
                       {selectedLog.debug_info.passed.length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-green-700 mb-2">
-                            ✅ Passed ({selectedLog.debug_info.passed.length})
+                            ✅ Gebruikt voor antwoord (
+                            {selectedLog.debug_info.passed.length})
                           </p>
                           <div className="space-y-2">
-                            {selectedLog.debug_info.passed.map((chunk, i) => (
-                              <div
-                                key={`passed-${i}`}
-                                className="border-l-2 border-green-400 pl-3 py-1"
-                              >
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-mono font-bold text-green-700">
-                                    {chunk.score.toFixed(3)}
-                                  </span>
-                                  <span className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded">
-                                    {chunk.namespace}
-                                  </span>
-                                  <span className="text-xs text-gray-500 truncate max-w-[250px]">
-                                    {chunk.source}
-                                  </span>
+                            {selectedLog.debug_info.passed.map((chunk, i) => {
+                              const chunkKey = `passed-${i}`;
+                              const isExpanded = expandedChunks.has(chunkKey);
+                              const sourceParts = chunk.source.split("/");
+                              const sourceName =
+                                sourceParts.length > 1
+                                  ? sourceParts[sourceParts.length - 1]
+                                  : chunk.source;
+                              const sourceFolder =
+                                sourceParts.length > 1
+                                  ? sourceParts.slice(0, -1).join(" › ")
+                                  : "";
+                              return (
+                                <div
+                                  key={chunkKey}
+                                  className="border-l-2 border-green-400 pl-3 py-1"
+                                >
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-mono font-bold text-green-700">
+                                      {chunk.score.toFixed(3)}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-800">
+                                      {sourceName}
+                                    </span>
+                                  </div>
+                                  {sourceFolder && (
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                      {sourceFolder}
+                                    </p>
+                                  )}
+                                  <div className="mt-1">
+                                    <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                                      {isExpanded
+                                        ? chunk.text_preview
+                                        : chunk.text_preview.length > 150
+                                          ? chunk.text_preview.slice(0, 150) +
+                                            "…"
+                                          : chunk.text_preview}
+                                    </p>
+                                    {chunk.text_preview.length > 150 && (
+                                      <button
+                                        onClick={() => {
+                                          const next = new Set(expandedChunks);
+                                          isExpanded
+                                            ? next.delete(chunkKey)
+                                            : next.add(chunkKey);
+                                          setExpandedChunks(next);
+                                        }}
+                                        className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                                      >
+                                        {isExpanded
+                                          ? "Minder tonen"
+                                          : "Meer tonen"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                                  {chunk.text_preview}
-                                </p>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -619,31 +660,69 @@ export default function LogsPage() {
                       {selectedLog.debug_info.filtered.length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-red-600 mb-2">
-                            ❌ Filtered (
+                            ❌ Genegeerd — score te laag (
                             {selectedLog.debug_info.filtered.length})
                           </p>
                           <div className="space-y-2">
-                            {selectedLog.debug_info.filtered.map((chunk, i) => (
-                              <div
-                                key={`filtered-${i}`}
-                                className="border-l-2 border-red-300 pl-3 py-1 opacity-70"
-                              >
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-mono font-bold text-red-600">
-                                    {chunk.score.toFixed(3)}
-                                  </span>
-                                  <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
-                                    {chunk.namespace}
-                                  </span>
-                                  <span className="text-xs text-gray-500 truncate max-w-[250px]">
-                                    {chunk.source}
-                                  </span>
+                            {selectedLog.debug_info.filtered.map((chunk, i) => {
+                              const chunkKey = `filtered-${i}`;
+                              const isExpanded = expandedChunks.has(chunkKey);
+                              const sourceParts = chunk.source.split("/");
+                              const sourceName =
+                                sourceParts.length > 1
+                                  ? sourceParts[sourceParts.length - 1]
+                                  : chunk.source;
+                              const sourceFolder =
+                                sourceParts.length > 1
+                                  ? sourceParts.slice(0, -1).join(" › ")
+                                  : "";
+                              return (
+                                <div
+                                  key={chunkKey}
+                                  className="border-l-2 border-red-300 pl-3 py-1 opacity-70"
+                                >
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-mono font-bold text-red-600">
+                                      {chunk.score.toFixed(3)}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-700">
+                                      {sourceName}
+                                    </span>
+                                  </div>
+                                  {sourceFolder && (
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                      {sourceFolder}
+                                    </p>
+                                  )}
+                                  <div className="mt-1">
+                                    <p className="text-xs text-gray-500 whitespace-pre-wrap">
+                                      {isExpanded
+                                        ? chunk.text_preview
+                                        : chunk.text_preview.length > 150
+                                          ? chunk.text_preview.slice(0, 150) +
+                                            "…"
+                                          : chunk.text_preview}
+                                    </p>
+                                    {chunk.text_preview.length > 150 && (
+                                      <button
+                                        onClick={() => {
+                                          const next = new Set(expandedChunks);
+                                          isExpanded
+                                            ? next.delete(chunkKey)
+                                            : next.add(chunkKey);
+                                          setExpandedChunks(next);
+                                        }}
+                                        className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                                      >
+                                        {isExpanded
+                                          ? "Minder tonen"
+                                          : "Meer tonen"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
-                                  {chunk.text_preview}
-                                </p>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -651,7 +730,7 @@ export default function LogsPage() {
                       {selectedLog.debug_info.passed.length === 0 &&
                         selectedLog.debug_info.filtered.length === 0 && (
                           <p className="text-xs text-gray-500 italic">
-                            Geen retrieval data beschikbaar
+                            Geen documenten gevonden voor deze vraag
                           </p>
                         )}
                     </div>

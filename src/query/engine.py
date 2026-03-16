@@ -213,15 +213,15 @@ class QueryEngine:
                 threshold=threshold
             )
         
-        # Handle no results
+        # Handle no results — still send to LLM so system prompt can handle
+        # greetings, confirmations, and generic questions naturally.
         if not chunks:
-            logger.warning(
-                "no_chunks_found",
+            logger.info(
+                "no_chunks_above_threshold",
                 question=search_question,
                 top_k=request.top_k,
-                category_filter=category_filter
+                all_filtered=len(filtered_chunks),
             )
-            return self._create_no_results_response(question, query_start)
         
         # Step 2: Generate answer using LLM
         logger.info(
@@ -251,7 +251,7 @@ class QueryEngine:
             )
             return self._create_error_response(
                 question=original_question,
-                error_message="Failed to generate answer. Please try again.",
+                error_message="Kon geen antwoord genereren. Probeer het opnieuw.",
                 query_start=query_start
             )
         
