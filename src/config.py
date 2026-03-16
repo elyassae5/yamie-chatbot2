@@ -31,7 +31,7 @@ class Config:
     # LLM Settings
     llm_model: str = "gpt-4o"                    # OpenAI model for generation
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
-    llm_max_tokens: int = 800               # Max response length
+    llm_max_tokens: int = 500               # Max response length
 
     # Timeout configuration
     openai_timeout_seconds: int = 30  # Max 30s for OpenAI API calls
