@@ -250,7 +250,7 @@ def process_query_background(from_number: str, incoming_message: str):
                             "source": chunk.source,
                             "namespace": chunk.category,
                             "score": round(chunk.similarity_score, 3),
-                            "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                            "text": chunk.text,
                             "status": "passed",
                         }
                         for chunk in query_response.sources
@@ -260,7 +260,7 @@ def process_query_background(from_number: str, incoming_message: str):
                             "source": chunk.source,
                             "namespace": chunk.category,
                             "score": round(chunk.similarity_score, 3),
-                            "text_preview": chunk.text[:200] + "…" if len(chunk.text) > 200 else chunk.text,
+                            "text": chunk.text,
                             "status": "filtered",
                         }
                         for chunk in query_response.filtered_chunks

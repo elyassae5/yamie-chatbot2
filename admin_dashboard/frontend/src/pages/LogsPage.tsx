@@ -34,7 +34,8 @@ interface DebugChunk {
   source: string;
   namespace: string;
   score: number;
-  text_preview: string;
+  text: string;
+  text_preview?: string; // backwards compat with old logs
   status: "passed" | "filtered";
 }
 
@@ -469,7 +470,7 @@ export default function LogsPage() {
           setExpandedChunks(new Set());
         }}
       >
-        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Vraag Detail</DialogTitle>
           </DialogHeader>
@@ -561,19 +562,18 @@ export default function LogsPage() {
 
               {/* Bronnen & Context Panel */}
               {selectedLog.debug_info && (
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-hidden min-w-0">
                   <button
                     onClick={() => setShowDebug(!showDebug)}
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors min-w-0"
                   >
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <span className="font-medium text-gray-700 text-sm">
                         Bronnen & context
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 break-words">
                         {selectedLog.debug_info.chunks_passed} gebruikt ·{" "}
-                        {selectedLog.debug_info.chunks_filtered} genegeerd ·
-                        score-drempel {selectedLog.debug_info.threshold}
+                        {selectedLog.debug_info.chunks_filtered} genegeerd
                       </span>
                     </div>
                     {showDebug ? (
@@ -584,7 +584,7 @@ export default function LogsPage() {
                   </button>
 
                   {showDebug && (
-                    <div className="p-3 space-y-3 max-h-[500px] overflow-y-auto">
+                    <div className="p-3 space-y-3 max-h-[500px] overflow-y-auto overflow-x-hidden min-w-0">
                       {/* Used chunks */}
                       {selectedLog.debug_info.passed.length > 0 && (
                         <div>
@@ -605,34 +605,35 @@ export default function LogsPage() {
                                 sourceParts.length > 1
                                   ? sourceParts.slice(0, -1).join(" › ")
                                   : "";
+                              const fullText =
+                                chunk.text || chunk.text_preview || "";
                               return (
                                 <div
                                   key={chunkKey}
-                                  className="border-l-2 border-green-400 pl-3 py-1"
+                                  className="border-l-2 border-green-400 pl-3 py-1 min-w-0"
                                 >
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-mono font-bold text-green-700">
+                                  <div className="flex items-start gap-2 flex-wrap min-w-0">
+                                    <span className="text-xs font-mono font-bold text-green-700 shrink-0">
                                       {chunk.score.toFixed(3)}
                                     </span>
-                                    <span className="text-xs font-medium text-gray-800">
+                                    <span className="text-xs font-medium text-gray-800 break-words min-w-0">
                                       {sourceName}
                                     </span>
                                   </div>
                                   {sourceFolder && (
-                                    <p className="text-xs text-gray-400 mt-0.5">
+                                    <p className="text-xs text-gray-400 mt-0.5 break-words">
                                       {sourceFolder}
                                     </p>
                                   )}
                                   <div className="mt-1">
-                                    <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                                    <p className="text-xs text-gray-600 whitespace-pre-wrap break-words">
                                       {isExpanded
-                                        ? chunk.text_preview
-                                        : chunk.text_preview.length > 150
-                                          ? chunk.text_preview.slice(0, 150) +
-                                            "…"
-                                          : chunk.text_preview}
+                                        ? fullText
+                                        : fullText.length > 150
+                                          ? fullText.slice(0, 150) + "…"
+                                          : fullText}
                                     </p>
-                                    {chunk.text_preview.length > 150 && (
+                                    {fullText.length > 150 && (
                                       <button
                                         onClick={() => {
                                           const next = new Set(expandedChunks);
@@ -676,34 +677,35 @@ export default function LogsPage() {
                                 sourceParts.length > 1
                                   ? sourceParts.slice(0, -1).join(" › ")
                                   : "";
+                              const fullText =
+                                chunk.text || chunk.text_preview || "";
                               return (
                                 <div
                                   key={chunkKey}
-                                  className="border-l-2 border-red-300 pl-3 py-1 opacity-70"
+                                  className="border-l-2 border-red-300 pl-3 py-1 opacity-70 min-w-0"
                                 >
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-mono font-bold text-red-600">
+                                  <div className="flex items-start gap-2 flex-wrap min-w-0">
+                                    <span className="text-xs font-mono font-bold text-red-600 shrink-0">
                                       {chunk.score.toFixed(3)}
                                     </span>
-                                    <span className="text-xs font-medium text-gray-700">
+                                    <span className="text-xs font-medium text-gray-700 break-words min-w-0">
                                       {sourceName}
                                     </span>
                                   </div>
                                   {sourceFolder && (
-                                    <p className="text-xs text-gray-400 mt-0.5">
+                                    <p className="text-xs text-gray-400 mt-0.5 break-words">
                                       {sourceFolder}
                                     </p>
                                   )}
                                   <div className="mt-1">
-                                    <p className="text-xs text-gray-500 whitespace-pre-wrap">
+                                    <p className="text-xs text-gray-500 whitespace-pre-wrap break-words">
                                       {isExpanded
-                                        ? chunk.text_preview
-                                        : chunk.text_preview.length > 150
-                                          ? chunk.text_preview.slice(0, 150) +
-                                            "…"
-                                          : chunk.text_preview}
+                                        ? fullText
+                                        : fullText.length > 150
+                                          ? fullText.slice(0, 150) + "…"
+                                          : fullText}
                                     </p>
-                                    {chunk.text_preview.length > 150 && (
+                                    {fullText.length > 150 && (
                                       <button
                                         onClick={() => {
                                           const next = new Set(expandedChunks);
