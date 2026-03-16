@@ -412,7 +412,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         
         # Send "Denken..." acknowledgment immediately
         try:
-            send_whatsapp_message(from_number, "🤔 Denken...")
+            send_whatsapp_message(from_number, "Momentje... ⏳")
             logger.debug("acknowledgment_sent", to=from_number[:18] + "***")
         except Exception as e:
             logger.warning("acknowledgment_failed", error=str(e))
