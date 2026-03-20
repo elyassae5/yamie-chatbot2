@@ -7,7 +7,7 @@ Endpoints:
 - GET  /api/sync/history      — Get paginated sync log history
 """
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import structlog
@@ -65,9 +65,63 @@ class SyncHistoryResponse(BaseModel):
     page_size: int
 
 
-# Track whether a sync is currently running
-_sync_in_progress = False
-_current_sync_status: Optional[Dict[str, Any]] = None
+# ========== DATABASE LOCK HELPERS ==========
+
+def _acquire_lock(username: str) -> bool:
+    """
+    Attempt to acquire the sync lock atomically via Postgres.
+    
+    Returns True if lock acquired, False if another sync is running.
+    Also auto-releases stale locks older than 30 minutes.
+    """
+    try:
+        from src.database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        
+        response = client.rpc("acquire_sync_lock", {"p_started_by": username}).execute()
+        
+        # RPC returns True if the UPDATE matched a row, None/empty if not
+        if response.data is True:
+            return True
+        return False
+        
+    except Exception as e:
+        logger.error("sync_lock_acquire_failed", error=str(e), error_type=type(e).__name__)
+        return False
+
+
+def _release_lock():
+    """Release the sync lock."""
+    try:
+        from src.database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        
+        client.rpc("release_sync_lock").execute()
+        
+    except Exception as e:
+        logger.error("sync_lock_release_failed", error=str(e), error_type=type(e).__name__)
+
+
+def _is_sync_running() -> Dict[str, Any]:
+    """Check current lock status (for the status endpoint)."""
+    try:
+        from src.database.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        
+        response = client.table("sync_lock").select("*").eq("id", 1).execute()
+        
+        if response.data and len(response.data) > 0:
+            row = response.data[0]
+            return {
+                "is_running": row.get("is_running", False),
+                "started_by": row.get("started_by"),
+                "started_at": row.get("started_at"),
+            }
+        return {"is_running": False}
+        
+    except Exception as e:
+        logger.error("sync_lock_check_failed", error=str(e), error_type=type(e).__name__)
+        return {"is_running": False}
 
 
 # ========== ROUTES ==========
@@ -84,11 +138,12 @@ async def run_sync(
     Set force_full=true to re-ingest everything (needed once for migration
     to deterministic vector IDs).
 
+    Uses a database-level lock to prevent concurrent syncs across all workers.
+
     Requires authentication.
     """
-    global _sync_in_progress, _current_sync_status
-
-    if _sync_in_progress:
+    # Attempt to acquire database lock (atomic — safe across multiple workers)
+    if not _acquire_lock(username):
         raise HTTPException(
             status_code=409,
             detail="A sync is already in progress. Please wait for it to finish.",
@@ -100,9 +155,6 @@ async def run_sync(
         force_full=request.force_full,
         source_keys=request.source_keys,
     )
-
-    _sync_in_progress = True
-    _current_sync_status = {"status": "running", "started_by": username}
 
     try:
         from src.ingestion.sync_service import ContentSyncService
@@ -161,8 +213,8 @@ async def run_sync(
         )
 
     finally:
-        _sync_in_progress = False
-        _current_sync_status = None
+        # Always release the lock, even if sync fails
+        _release_lock()
 
 
 @router.get("/status", response_model=SyncStatusResponse)
@@ -183,10 +235,15 @@ async def get_sync_status(
         service = ContentSyncService()
         status = service.get_sync_status()
 
-        # Add in-progress flag
-        status["_sync_in_progress"] = _sync_in_progress
-        if _current_sync_status:
-            status["_current_sync"] = _current_sync_status
+        # Add lock status from database
+        lock_status = _is_sync_running()
+        status["_sync_in_progress"] = lock_status["is_running"]
+        if lock_status["is_running"]:
+            status["_current_sync"] = {
+                "status": "running",
+                "started_by": lock_status.get("started_by"),
+                "started_at": lock_status.get("started_at"),
+            }
 
         return SyncStatusResponse(sources=status)
 
