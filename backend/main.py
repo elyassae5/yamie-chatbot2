@@ -5,6 +5,7 @@ Production-ready REST API that wraps the QueryEngine.
 Supports multiple frontends (Gradio, WhatsApp, React, etc.)
 """
 
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -24,6 +25,9 @@ from src.logging_config import setup_logging
 # Initialize structured logging for the backend
 setup_logging(log_level="INFO")
 logger = structlog.get_logger(__name__)
+
+# Determine environment — disable docs in production
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
 
 # Lifespan context manager for startup/shutdown
@@ -97,14 +101,14 @@ async def lifespan(app: FastAPI):
 
 
 
-# Create FastAPI app
+# Create FastAPI app — docs disabled in production
 app = FastAPI(
     title="YamieBot API",
     description="REST API for YamieBot - AI Assistant for Yamie PastaBar",
     version=__version__,
     lifespan=lifespan,
-    docs_url="/docs",  # Swagger UI at /docs
-    redoc_url="/redoc",  # ReDoc at /redoc
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
 )
 
 # Get configuration
@@ -137,6 +141,12 @@ logger.info(
     prefix="/api"
 )
 
+logger.info(
+    "docs_status",
+    docs_enabled=not IS_PRODUCTION,
+    environment=os.getenv("ENVIRONMENT", "development")
+)
+
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
@@ -146,12 +156,6 @@ async def root():
         "name": "YamieBot API",
         "version": __version__,
         "status": "running",
-        "docs": "/docs",
-        "endpoints": {
-            "query": "/api/query",
-            "health": "/api/health",
-            "stats": "/api/stats"
-        }
     }
 
 # Rate limit exception handler

@@ -154,7 +154,7 @@ async def get_query_logs(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch query logs: {str(e)}"
+            detail="Failed to fetch query logs. Check server logs for details."
         )
 
 
@@ -250,7 +250,7 @@ async def get_logs_summary(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate summary: {str(e)}"
+            detail="Failed to generate summary. Check server logs for details."
         )
 
 
@@ -278,7 +278,7 @@ async def get_single_log(
             logger.warning("log_not_found", log_id=log_id)
             raise HTTPException(
                 status_code=404,
-                detail=f"Query log with ID {log_id} not found"
+                detail="Query log not found."
             )
 
         logger.info("single_log_fetched", log_id=log_id, requested_by=username)
@@ -296,5 +296,5 @@ async def get_single_log(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch query log: {str(e)}"
+            detail="Failed to fetch query log. Check server logs for details."
         )

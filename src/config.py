@@ -49,6 +49,9 @@ class Config:
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY", "")
 
+    # API Security
+    api_secret_key: str = os.getenv("API_SECRET_KEY", "")
+
     # Memory Settings
     conversation_ttl_seconds: int = 1800  # 30 minutes (1800 seconds)
     max_conversation_turns: int = 5  # Remember last N Q&A pairs
@@ -81,10 +84,10 @@ class Config:
         if not self.supabase_service_role_key:
             errors.append("SUPABASE_SERVICE_ROLE_KEY missing")
 
-        # # Notion validation (optional - only needed for ingestion)
-        # if not self.notion_api_key:
-        #     errors.append("NOTION_API_KEY missing")
-        
+        # API Security validation
+        if not self.api_secret_key:
+            errors.append("API_SECRET_KEY missing — generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"")
+
         if errors:
             error_msg = "Config errors:\n" + "\n".join(errors)
             raise ValueError(error_msg)

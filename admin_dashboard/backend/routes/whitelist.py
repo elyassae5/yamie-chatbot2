@@ -20,8 +20,6 @@ config = get_admin_config()
 
 # ========== REQUEST/RESPONSE MODELS ==========
 
-# ========== REQUEST/RESPONSE MODELS ==========
-
 class WhitelistEntry(BaseModel):
     """A whitelisted phone number entry."""
     id: int = Field(..., description="Unique ID")
@@ -78,7 +76,7 @@ async def get_all_whitelisted_numbers(
         logger.error("whitelist_fetch_failed", error=str(e), error_type=type(e).__name__)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch whitelist: {str(e)}"
+            detail="Failed to fetch whitelist. Check server logs for details."
         )
 
 
@@ -116,7 +114,7 @@ async def add_whitelisted_number(
             )
             raise HTTPException(
                 status_code=409,
-                detail=f"Phone number {entry.phone_number} is already whitelisted"
+                detail="This phone number is already whitelisted."
             )
         
         # Insert new entry
@@ -154,7 +152,7 @@ async def add_whitelisted_number(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to add number to whitelist: {str(e)}"
+            detail="Failed to add number to whitelist. Check server logs for details."
         )
 
 
@@ -204,7 +202,7 @@ async def update_whitelisted_number(
             logger.warning("whitelist_update_failed", reason="not_found", entry_id=entry_id)
             raise HTTPException(
                 status_code=404,
-                detail=f"Whitelist entry with ID {entry_id} not found"
+                detail="Whitelist entry not found."
             )
         
         logger.info("whitelist_update_success", entry_id=entry_id, requested_by=username)
@@ -222,7 +220,7 @@ async def update_whitelisted_number(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update whitelist entry: {str(e)}"
+            detail="Failed to update whitelist entry. Check server logs for details."
         )
 
 
@@ -256,7 +254,7 @@ async def delete_whitelisted_number(
             logger.warning("whitelist_delete_failed", reason="not_found", entry_id=entry_id)
             raise HTTPException(
                 status_code=404,
-                detail=f"Whitelist entry with ID {entry_id} not found"
+                detail="Whitelist entry not found."
             )
         
         logger.info("whitelist_delete_success", entry_id=entry_id, requested_by=username)
@@ -274,5 +272,5 @@ async def delete_whitelisted_number(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to delete whitelist entry: {str(e)}"
+            detail="Failed to delete whitelist entry. Check server logs for details."
         )

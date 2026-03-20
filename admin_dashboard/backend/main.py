@@ -2,6 +2,7 @@
 Admin Dashboard Backend - Main FastAPI Application
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -14,6 +15,9 @@ from src.logging_config import setup_logging
 
 setup_logging(log_level="INFO")
 logger = structlog.get_logger(__name__)
+
+# Determine environment — disable docs in production
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
 
 # Lifespan context manager for startup/shutdown
@@ -29,14 +33,14 @@ async def lifespan(app: FastAPI):
     logger.info("admin_backend_shutdown", message="👋 ADMIN DASHBOARD SHUTTING DOWN")
 
 
-# Create FastAPI app
+# Create FastAPI app — docs disabled in production
 app = FastAPI(
     title="YamieBot Admin Dashboard API",
     description="Admin panel for managing YamieBot system",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
 )
 
 # Get configuration
@@ -65,6 +69,12 @@ app.include_router(sync.router, prefix="/api/sync", tags=["Content Sync"])
 
 logger.info("routers_registered", routers=["auth", "whitelist", "logs", "system", "sync"])
 
+logger.info(
+    "docs_status",
+    docs_enabled=not IS_PRODUCTION,
+    environment=os.getenv("ENVIRONMENT", "development")
+)
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -73,7 +83,6 @@ async def root():
         "name": "YamieBot Admin Dashboard API",
         "version": "1.0.0",
         "status": "running",
-        "docs": "/docs",
     }
 
 

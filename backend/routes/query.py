@@ -5,7 +5,7 @@ POST /api/query
 GET /api/stats
 """
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Header
 from fastapi_limiter.depends import RateLimiter
 from datetime import datetime
 import structlog
@@ -32,12 +32,32 @@ except Exception as e:
     engine = None
 
 
+# ========== API KEY AUTHENTICATION ==========
+
+async def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+    """
+    Verify the API key from request header.
+    
+    Every request to /api/query and /api/stats must include:
+        X-API-Key: <your-secret-key>
+    
+    Raises 401 if missing or invalid.
+    """
+    config = get_config()
+    if x_api_key != config.api_secret_key:
+        logger.warning("invalid_api_key_attempt")
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+# ========== ROUTES ==========
+
 @router.post(
     "/query",
     response_model=QueryResponse,
     responses={
         200: {"description": "Query processed successfully"},
         400: {"model": ErrorResponse, "description": "Invalid request"},
+        401: {"description": "Invalid or missing API key"},
         429: {"description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Server error"},
     }
@@ -45,47 +65,26 @@ except Exception as e:
 async def query(
     request: QueryRequest,
     http_request: Request,
+    _: None = Depends(verify_api_key),
     rate_limit_user: None = Depends(RateLimiter(times=20, seconds=60)),
     rate_limit_ip: None = Depends(RateLimiter(times=60, seconds=60))
 ) -> QueryResponse:
     """
     Process a question and return an answer.
 
+    Requires X-API-Key header.
+
     Rate limits:
     - Per user: 20 requests per minute
     - Per IP: 60 requests per minute (allows multiple users from same location)
     
     This endpoint:
-    1. Validates the input
-    2. Checks conversation memory (Redis)
-    3. Searches relevant documents (Pinecone)
-    4. Generates answer (OpenAI GPT-4o-mini)
-    5. Returns structured response
-    
-    **Example Request:**
-```json
-    {
-        "question": "Wie is Daoud?",
-        "user_id": "gradio_user",
-        "debug": true
-    }
-```
-    
-    **Example Response:**
-```json
-    {
-        "question": "Wie is Daoud?",
-        "answer": "Daoud is verantwoordelijk voor...",
-        "sources": [...],
-        "has_answer": true,
-        "response_time_seconds": 1.23,
-        "debug_info": {
-            "transformed_question": "Wie is Daoud en wat zijn zijn taken?",
-            "chunks_retrieved": 7,
-            "top_chunks": [...]
-        }
-    }
-```
+    1. Validates the API key
+    2. Validates the input
+    3. Checks conversation memory (Redis)
+    4. Searches relevant documents (Pinecone)
+    5. Generates answer (OpenAI GPT-4o)
+    6. Returns structured response
     """
     
     # Check if engine is initialized
@@ -261,9 +260,11 @@ async def query(
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(_: None = Depends(verify_api_key)):
     """
     Get query engine statistics.
+    
+    Requires X-API-Key header.
     
     Returns information about the system:
     - Vector store stats (total documents, namespace, etc.)
