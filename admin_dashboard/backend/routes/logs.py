@@ -165,23 +165,23 @@ async def get_logs_summary(
     """
     Get summary statistics about query logs.
 
-    Returns total queries, average response time, success rate, unique users, queries today.
+    Uses a Postgres function to compute all stats in one query
+    on the database side — no need to fetch all rows to Python.
+
     Requires authentication.
     """
     logger.info("logs_summary_requested", requested_by=username)
 
     try:
         from src.database.supabase_client import get_supabase_logger
-        from datetime import date
 
         supabase_logger = get_supabase_logger()
         client = supabase_logger.client
 
-        # ── 1. Total count ────────────────────────────────────────────────────
-        total_res = client.table("query_logs").select("*", count="exact").limit(1).execute()
-        total_queries = total_res.count or 0
+        # Single database call — all computation happens in Postgres
+        response = client.rpc("get_query_stats").execute()
 
-        if total_queries == 0:
+        if not response.data:
             return {
                 "total_queries": 0,
                 "average_response_time": 0,
@@ -192,54 +192,23 @@ async def get_logs_summary(
                 "queries_today": 0,
             }
 
-        # ── 2. Successful queries count ───────────────────────────────────────
-        success_res = (
-            client.table("query_logs")
-            .select("*", count="exact")
-            .eq("has_answer", True)
-            .limit(1)
-            .execute()
-        )
-        successful_queries = success_res.count or 0
+        stats = response.data
 
-        # ── 3. Queries today count ────────────────────────────────────────────
-        today_start = f"{date.today().isoformat()}T00:00:00"
-        today_res = (
-            client.table("query_logs")
-            .select("*", count="exact")
-            .gte("created_at", today_start)
-            .limit(1)
-            .execute()
-        )
-        queries_today = today_res.count or 0
-
-        # ── 4. Average response time (stored as ms in Supabase) ──────────────
-        rt_res = client.table("query_logs").select("response_time_ms").execute()
-        times = [
-            row["response_time_ms"]
-            for row in rt_res.data
-            if row.get("response_time_ms") is not None
-        ]
-        avg_response_time = (sum(times) / len(times) / 1000) if times else 0  # Convert ms → seconds
-
-        # ── 5. Unique users (single column only) ─────────────────────────────
-        users_res = client.table("query_logs").select("user_id").execute()
-        unique_users = len(set(
-            row["user_id"] for row in users_res.data if row.get("user_id")
-        ))
-
-        success_rate = (successful_queries / total_queries) * 100
+        total_queries = stats.get("total_queries", 0)
+        successful_queries = stats.get("successful_queries", 0)
+        avg_response_time_ms = stats.get("average_response_time_ms", 0)
+        success_rate = (successful_queries / total_queries * 100) if total_queries > 0 else 0
 
         logger.info("logs_summary_generated", requested_by=username, total_queries=total_queries)
 
         return {
             "total_queries": total_queries,
-            "average_response_time": round(avg_response_time, 2),
+            "average_response_time": round(avg_response_time_ms / 1000, 2),  # ms → seconds
             "success_rate": round(success_rate, 2),
-            "total_users": unique_users,
+            "total_users": stats.get("total_users", 0),
             "successful_queries": successful_queries,
-            "failed_queries": total_queries - successful_queries,
-            "queries_today": queries_today,
+            "failed_queries": stats.get("failed_queries", 0),
+            "queries_today": stats.get("queries_today", 0),
         }
 
     except Exception as e:
