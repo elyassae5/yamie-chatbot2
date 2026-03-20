@@ -11,25 +11,12 @@ from datetime import datetime
 import structlog
 
 from backend.models import QueryRequest, QueryResponse, ErrorResponse, Source
-from src.query import QueryEngine
+from backend.engine import engine
 from src.config import get_config
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-# Initialize QueryEngine (singleton - reused across requests)
-logger.info("query_engine_initialization_started")
-try:
-    engine = QueryEngine(config=get_config())
-    logger.info("query_engine_initialized", status="success")
-except Exception as e:
-    logger.error(
-        "query_engine_initialization_failed",
-        error=str(e),
-        error_type=type(e).__name__
-    )
-    engine = None
 
 
 # ========== API KEY AUTHENTICATION ==========

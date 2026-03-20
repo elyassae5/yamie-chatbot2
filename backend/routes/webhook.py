@@ -4,7 +4,7 @@ WhatsApp Webhook - Handles incoming WhatsApp messages via Twilio
 UPDATED: Now uses background processing to avoid Twilio's 15-second timeout.
 Flow:
 1. Receive message from Twilio
-2. Send "Denken..." acknowledgment
+2. Send "Momentje..." acknowledgment
 3. Return empty response to Twilio immediately (prevents timeout)
 4. Process query in background
 5. Send answer as a NEW message via Twilio API
@@ -19,7 +19,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from twilio.request_validator import RequestValidator
 
-from src.query import QueryEngine
+from backend.engine import engine
 from src.config import get_config
 
 
@@ -71,19 +71,6 @@ def is_whitelisted(phone_number: str) -> bool:
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
-
-# Initialize QueryEngine (singleton - reused across requests)
-logger.info("query_engine_initialization_started")
-try:
-    engine = QueryEngine(config=get_config())
-    logger.info("query_engine_initialized", status="success")
-except Exception as e:
-    logger.error(
-        "query_engine_initialization_failed",
-        error=str(e),
-        error_type=type(e).__name__
-    )
-    engine = None
 
 # Initialize Twilio client for sending messages
 try:
@@ -175,7 +162,7 @@ def process_query_background(from_number: str, incoming_message: str):
     )
     
     try:
-        # Process question using QueryEngine
+        # Process question using shared QueryEngine
         query_response = engine.query(
             question=incoming_message,
             user_id=from_number,  # Use phone number as user_id for conversation memory
@@ -219,7 +206,8 @@ def process_query_background(from_number: str, incoming_message: str):
             supabase_logger.log_query(
                 user_id=from_number,  # WhatsApp number as user_id
                 question=incoming_message,
-                answer=answer,
+                transformed_question=query_response.question if query_response.question != incoming_message else None,
+                answer=query_response.answer,
                 has_answer=query_response.has_answer,
                 response_time_seconds=query_response.response_time_seconds,
                 sources=[
@@ -231,7 +219,7 @@ def process_query_background(from_number: str, incoming_message: str):
                     for chunk in query_response.sources
                 ],
                 chunks_retrieved=len(query_response.sources),
-                client_ip="whatsapp_webhook_background",
+                client_ip="whatsapp",
                 model=config.llm_model,
                 config_top_k=config.query_top_k,
                 config_chunk_size=config.chunk_size,
@@ -325,7 +313,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     Flow:
     1. Validate Twilio signature
     2. Extract message details
-    3. Send "Denken..." acknowledgment
+    3. Send "Momentje..." acknowledgment
     4. Schedule background task to process query
     5. Return empty response to Twilio (prevents 15-second timeout)
     """
@@ -422,7 +410,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         
         # ========== SEND ACKNOWLEDGMENT & SCHEDULE BACKGROUND TASK ==========
         
-        # Send "Denken..." acknowledgment immediately
+        # Send "Momentje..." acknowledgment immediately
         try:
             send_whatsapp_message(from_number, "Momentje... ⏳")
             logger.debug("acknowledgment_sent", to=from_number[:18] + "***")

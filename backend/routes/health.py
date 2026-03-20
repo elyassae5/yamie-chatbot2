@@ -26,20 +26,6 @@ async def health_check() -> HealthResponse:
     - QueryEngine initialization status
     - Redis connection
     - Pinecone connection
-    
-    **Response:**
-```json
-    {
-        "status": "healthy",
-        "timestamp": "2026-01-02T16:30:00Z",
-        "version": "1.0.0",
-        "components": {
-            "query_engine": "healthy",
-            "redis": "healthy",
-            "pinecone": "healthy"
-        }
-    }
-```
     """
     
     logger.debug("health_check_started")
@@ -49,7 +35,7 @@ async def health_check() -> HealthResponse:
     
     # Check QueryEngine
     try:
-        from backend.routes.query import engine
+        from backend.engine import engine
         if engine is not None:
             components["query_engine"] = "healthy"
             logger.debug("query_engine_health", status="healthy")
