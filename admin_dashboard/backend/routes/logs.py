@@ -89,6 +89,12 @@ async def get_query_logs(
 
         supabase_logger = get_supabase_logger()
 
+        # Sanitize search input — strip characters that could break filter syntax
+        if search:
+            search = search.replace("%", "").replace("\\", "").replace("(", "").replace(")", "").replace(",", "").replace(".", "").strip()
+            if not search:
+                search = None
+
         # Build query
         query = supabase_logger.client.table("query_logs").select("*")
 
