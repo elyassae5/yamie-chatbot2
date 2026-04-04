@@ -25,6 +25,11 @@ import {
   ChevronUp,
   Copy,
   Check,
+  MessageSquare,
+  Activity,
+  Users,
+  Filter,
+  X,
 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { getWhitelist } from "@/api/whitelist";
@@ -94,6 +99,7 @@ export default function LogsPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [phoneToName, setPhoneToName] = useState<Record<string, string>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -167,6 +173,20 @@ export default function LogsPage() {
     }
   };
 
+  const openLogDetail = async (log: LogEntry) => {
+    // Show modal immediately with list data, then fetch full detail (debug_info)
+    setSelectedLog(log);
+    setDetailLoading(true);
+    try {
+      const response = await apiClient.get<LogEntry>(`/logs/${log.id}`);
+      setSelectedLog(response.data);
+    } catch (err) {
+      console.error("Failed to fetch log detail:", err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const handleSearch = () => {
     setSearch(searchInput);
     setPage(1);
@@ -204,6 +224,35 @@ export default function LogsPage() {
     return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
   };
 
+  const [showFilters, setShowFilters] = useState(false);
+  const hasActiveFilters = !!(search || selectedUser || dateFrom || dateTo);
+
+  const statCards = stats
+    ? [
+        {
+          label: "Totale Vragen",
+          value: stats.total_queries.toLocaleString(),
+          icon: MessageSquare,
+          color: "text-blue-600",
+          bg: "bg-blue-50",
+        },
+        {
+          label: "Vandaag",
+          value: ((stats as any).queries_today ?? 0).toString(),
+          icon: Activity,
+          color: "text-orange-600",
+          bg: "bg-orange-50",
+        },
+        {
+          label: "Gebruikers",
+          value: stats.total_users.toString(),
+          icon: Users,
+          color: "text-purple-600",
+          bg: "bg-purple-50",
+        },
+      ]
+    : [];
+
   return (
     <Layout>
       <div>
@@ -217,28 +266,38 @@ export default function LogsPage() {
           </p>
         </div>
 
-        {/* Stats - 2 cards */}
-        {stats && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 mb-6 max-w-sm">
-            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
-              <p className="text-xs text-gray-500">Totaal</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900">
-                {stats.total_queries}
-              </p>
-            </div>
-            <div className="bg-white shadow rounded-lg p-3 sm:p-4">
-              <p className="text-xs text-gray-500">Vandaag</p>
-              <p className="text-xl sm:text-2xl font-bold text-orange-600">
-                {(stats as any).queries_today ?? "—"}
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Stats - 4 cards */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {loading && !stats
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white shadow rounded-lg p-4 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-md flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="h-3 bg-gray-200 rounded w-16 mb-2" />
+                      <div className="h-6 bg-gray-200 rounded w-10" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            : statCards.map(({ label, value, icon: Icon, color, bg }) => (
+                <div key={label} className="bg-white shadow rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`shrink-0 ${bg} rounded-md p-2.5`}>
+                      <Icon className={`h-5 w-5 ${color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{label}</p>
+                      <p className={`text-xl font-bold ${color}`}>{value}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+        </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:flex-wrap">
-          {/* Search */}
-          <div className="relative flex-1 min-w-48">
+        {/* Search + Filter toggle */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               className="pl-9"
@@ -248,62 +307,106 @@ export default function LogsPage() {
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
-          {/* Gebruiker dropdown */}
-          <select
-            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10 min-w-40"
-            value={selectedUser}
-            onChange={(e) => {
-              setSelectedUser(e.target.value);
-              setPage(1);
-            }}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm transition-colors ${
+              hasActiveFilters
+                ? "border-blue-200 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
           >
-            <option value="">Alle gebruikers</option>
-            {Object.entries(phoneToName)
-              .filter(([key]) => key.startsWith("whatsapp:"))
-              .map(([phone, name]) => (
-                <option key={phone} value={phone}>
-                  {name}
-                </option>
-              ))}
-          </select>
-          {/* Date from */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 px-1">Van</label>
-            <input
-              type="date"
-              className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          {/* Date to */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 px-1">Tot</label>
-            <input
-              type="date"
-              className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-10"
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <Button
-            onClick={handleSearch}
-            className="bg-gray-900 hover:bg-gray-700 text-white w-full sm:w-auto"
-          >
-            Zoeken
-          </Button>
-          {(search || selectedUser || dateFrom || dateTo) && (
-            <Button variant="outline" size="sm" onClick={handleClearSearch}>
-              ✕ Wis filters
-            </Button>
-          )}
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {hasActiveFilters && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+            )}
+          </button>
         </div>
+
+        {/* Collapsible filters */}
+        {showFilters && (
+          <div className="bg-white shadow rounded-lg p-4 mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1 min-w-0">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Gebruiker</label>
+                <select
+                  title="Gebruiker filter"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-9"
+                  value={selectedUser}
+                  onChange={(e) => { setSelectedUser(e.target.value); setPage(1); }}
+                >
+                  <option value="">Alle gebruikers</option>
+                  {Object.entries(phoneToName)
+                    .filter(([key]) => key.startsWith("whatsapp:"))
+                    .map(([phone, name]) => (
+                      <option key={phone} value={phone}>{name}</option>
+                    ))}
+                </select>
+              </div>
+              <div className="sm:w-40">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Van</label>
+                <input
+                  type="date"
+                  title="Datum van"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-9"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                />
+              </div>
+              <div className="sm:w-40">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Tot</label>
+                <input
+                  type="date"
+                  title="Datum tot"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white text-gray-700 h-9"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSearch} size="sm" className="bg-gray-900 hover:bg-gray-700 text-white">
+                  Toepassen
+                </Button>
+                {hasActiveFilters && (
+                  <Button variant="outline" size="sm" onClick={handleClearSearch} className="gap-1">
+                    <X className="h-3.5 w-3.5" /> Wissen
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active filter badges */}
+        {hasActiveFilters && !showFilters && (
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="text-xs text-gray-400">Actieve filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
+                "{search}"
+                <button title="Zoekfilter wissen" onClick={() => { setSearch(""); setSearchInput(""); setPage(1); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {selectedUser && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs">
+                {phoneToName[selectedUser] || selectedUser.replace("whatsapp:", "")}
+                <button title="Gebruikerfilter wissen" onClick={() => { setSelectedUser(""); setPage(1); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {(dateFrom || dateTo) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-xs">
+                {dateFrom || "..."} — {dateTo || "..."}
+                <button title="Datumfilter wissen" onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
 
         {error && (
           <Alert variant="destructive" className="mb-4">
@@ -311,40 +414,56 @@ export default function LogsPage() {
           </Alert>
         )}
 
-        {/* Show loading only on first load, not on page/filter changes */}
+        {/* Loading state */}
         {loading && logs.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            Bezig met laden...
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="animate-pulse flex items-start gap-3 py-2">
+                  <div className="w-2 h-2 bg-gray-200 rounded-full mt-1.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className={loading ? "opacity-50 pointer-events-none" : ""}>
             {/* Mobile: Card list */}
-            <div className="sm:hidden space-y-3">
+            <div className="sm:hidden space-y-2">
               {logs.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
+                <div className="bg-white shadow rounded-lg p-8 text-center text-gray-400 text-sm">
+                  {search ? "Geen resultaten gevonden" : "Nog geen vragen gesteld"}
                 </div>
               ) : (
                 logs.map((log) => (
                   <div
                     key={log.id}
-                    className="bg-white shadow rounded-lg p-4 cursor-pointer active:bg-gray-50"
-                    onClick={() => setSelectedLog(log)}
+                    className="bg-white shadow rounded-lg px-4 py-3.5 cursor-pointer active:bg-gray-50 transition-colors"
+                    onClick={() => openLogDetail(log)}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs text-gray-400">
-                        {log.created_at ? formatDateShort(log.created_at) : "—"}
-                      </span>
-                      <span className="text-xs text-gray-400 font-medium">
-                        {formatUserDisplay(log.user_id)}
-                      </span>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-gray-300" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 leading-snug">
+                          {truncate(log.question, 90)}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1.5 line-clamp-1">
+                          {truncate(log.answer, 70)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs text-gray-300">
+                            {log.created_at ? formatDateShort(log.created_at) : "—"}
+                          </span>
+                          <span className="text-xs text-gray-300">·</span>
+                          <span className="text-xs text-gray-400 font-medium">
+                            {formatUserDisplay(log.user_id)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm font-medium text-gray-900 mb-1">
-                      {truncate(log.question, 80)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {truncate(log.answer, 60)}
-                    </p>
                   </div>
                 ))
               )}
@@ -354,41 +473,42 @@ export default function LogsPage() {
             <div className="hidden sm:block bg-white shadow rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="w-8 pl-4"></TableHead>
                     <TableHead className="w-36">Tijdstip</TableHead>
                     <TableHead className="w-32">Gebruiker</TableHead>
                     <TableHead>Vraag</TableHead>
-                    <TableHead>Antwoord</TableHead>
+                    <TableHead className="w-1/3">Antwoord</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {logs.length === 0 ? (
                     <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        className="text-center text-gray-500 py-8"
-                      >
-                        {search ? "Geen resultaten" : "Geen vragen beschikbaar"}
+                      <TableCell colSpan={5} className="text-center text-gray-400 py-12">
+                        {search ? "Geen resultaten gevonden" : "Nog geen vragen gesteld"}
                       </TableCell>
                     </TableRow>
                   ) : (
                     logs.map((log) => (
                       <TableRow
                         key={log.id}
-                        className="cursor-pointer hover:bg-gray-50"
-                        onClick={() => setSelectedLog(log)}
+                        className="cursor-pointer hover:bg-gray-50/70 transition-colors"
+                        onClick={() => openLogDetail(log)}
                       >
-                        <TableCell className="text-xs text-gray-500 whitespace-nowrap">
+                        <TableCell className="pl-4 pr-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-400 whitespace-nowrap">
                           {log.created_at ? formatDate(log.created_at) : "—"}
                         </TableCell>
-                        <TableCell className="text-xs font-mono">
+                        <TableCell className="text-sm text-gray-600 font-medium">
                           {formatUserDisplay(log.user_id)}
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell className="text-sm text-gray-900">
                           {truncate(log.question, 80)}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {truncate(log.answer, 80)}
+                        <TableCell className="text-sm text-gray-400">
+                          {truncate(log.answer, 70)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -400,15 +520,16 @@ export default function LogsPage() {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
-                <p className="text-sm text-gray-500">
-                  {totalCount} resultaten — pagina {page}/{totalPages}
+                <p className="text-xs text-gray-400">
+                  {totalCount} resultaten — pagina {page} van {totalPages}
                 </p>
-                <div className="flex gap-1 flex-wrap">
+                <div className="flex items-center gap-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setPage((p) => p - 1)}
                     disabled={page === 1}
+                    className="h-8 w-8 p-0"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -430,9 +551,9 @@ export default function LogsPage() {
                       p === "..." ? (
                         <span
                           key={`ellipsis-${idx}`}
-                          className="px-2 py-1 text-sm text-gray-400 self-center"
+                          className="px-1.5 text-xs text-gray-300"
                         >
-                          …
+                          ...
                         </span>
                       ) : (
                         <Button
@@ -440,7 +561,7 @@ export default function LogsPage() {
                           variant={p === page ? "default" : "outline"}
                           size="sm"
                           onClick={() => setPage(p as number)}
-                          className={p === page ? "bg-gray-900 text-white" : ""}
+                          className={`h-8 w-8 p-0 text-xs ${p === page ? "bg-gray-900 text-white" : ""}`}
                         >
                           {p}
                         </Button>
@@ -451,6 +572,7 @@ export default function LogsPage() {
                     size="sm"
                     onClick={() => setPage((p) => p + 1)}
                     disabled={page === totalPages}
+                    className="h-8 w-8 p-0"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -564,6 +686,14 @@ export default function LogsPage() {
               )}
 
               {/* Bronnen & Context Panel */}
+              {detailLoading && !selectedLog.debug_info && (
+                <div className="border rounded-lg p-3 bg-gray-50">
+                  <div className="animate-pulse flex items-center gap-2">
+                    <div className="h-4 bg-gray-200 rounded w-32" />
+                    <div className="h-3 bg-gray-200 rounded w-20" />
+                  </div>
+                </div>
+              )}
               {selectedLog.debug_info && (
                 <div className="border rounded-lg overflow-hidden min-w-0">
                   <button

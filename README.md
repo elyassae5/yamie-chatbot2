@@ -80,8 +80,9 @@ yamie-chatbot2-main/
 ├── backend/                          # Chatbot FastAPI app (port 8000)
 │   ├── main.py                       # App entry point, CORS, rate limiter, lifespan
 │   ├── config.py                     # Backend-specific config
+│   ├── engine.py                     # Shared QueryEngine singleton
 │   └── routes/
-│       ├── query.py                  # POST /api/query (saves full debug data to Supabase)
+│       ├── query.py                  # POST /api/query (API key auth, debug data to Supabase)
 │       ├── health.py                 # GET /api/health + /api/stats
 │       └── webhook.py                # POST /api/webhook/whatsapp (Twilio handler)
 │
@@ -279,11 +280,7 @@ npm run dev
 ```
 
 **Admin login credentials:**
-```
-Username: admin
-Password: changeme123
-```
-> ⚠️ These are currently hardcoded. Must be moved to environment variables before production handoff.
+Stored in Supabase `admin_users` table (bcrypt-hashed passwords). Managed via database, not hardcoded in code.
 
 ---
 
@@ -343,8 +340,9 @@ This data is saved to Supabase for every query (both API and WhatsApp).
 |---|---|---|
 | `whitelisted_numbers` | WhatsApp phone numbers allowed to use the bot | ✅ Enabled |
 | `query_logs` | Full query history with debug data | ✅ Enabled |
-| `admin_users` | Dashboard login credentials | ✅ Enabled |
+| `admin_users` | Dashboard login credentials (bcrypt hashes) | ✅ Enabled |
 | `sync_logs` | Content sync history and results | ✅ Enabled |
+| `sync_lock` | Atomic sync lock (single-row, 30-min auto-expiry) | ✅ Enabled |
 
 ---
 
@@ -379,10 +377,12 @@ TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 # Notion (needed for ingestion and sync)
 NOTION_API_KEY=ntn_...
 
+# API Security
+API_SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
+ENVIRONMENT=development  # Set to "production" on Railway to disable Swagger docs
+
 # Admin Dashboard
 ADMIN_JWT_SECRET=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=changeme123
 ```
 
 ---
@@ -521,7 +521,6 @@ The bot uses a single active system prompt (`src/query/system_prompt.py`, versio
 - Ticket/feedback system
 
 **Infrastructure:**
-- Admin credentials to environment variables (currently hardcoded)
 - Scheduled auto-sync (background job every X hours)
 - Response caching in Redis
 - Deprecate legacy ingestion script once sync is proven stable long-term

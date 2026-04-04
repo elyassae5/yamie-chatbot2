@@ -71,7 +71,7 @@ async def login(credentials: LoginRequest):
             logger.warning("login_failed", username=credentials.username, reason="user_not_found")
             raise HTTPException(
                 status_code=401,
-                detail="Invalid username or password"
+                detail="Onjuiste gebruikersnaam of wachtwoord"
             )
         
         user = response.data[0]
@@ -81,7 +81,7 @@ async def login(credentials: LoginRequest):
             logger.warning("login_failed", username=credentials.username, reason="user_inactive")
             raise HTTPException(
                 status_code=401,
-                detail="User account is disabled"
+                detail="Onjuiste gebruikersnaam of wachtwoord"
             )
         
         # Verify password using bcrypt
@@ -90,7 +90,7 @@ async def login(credentials: LoginRequest):
             logger.warning("login_failed", username=credentials.username, reason="invalid_password")
             raise HTTPException(
                 status_code=401,
-                detail="Invalid username or password"
+                detail="Onjuiste gebruikersnaam of wachtwoord"
             )
         
         # Password is correct! Create JWT token

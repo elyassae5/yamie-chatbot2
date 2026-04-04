@@ -68,6 +68,7 @@ async def get_query_logs(
     search: Optional[str] = Query(None, description="Search in questions and answers"),
     date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
+    has_answer: Optional[bool] = Query(None, description="Filter by whether bot had an answer"),
     username: str = Depends(get_current_user_simple)
 ):
     """
@@ -95,8 +96,10 @@ async def get_query_logs(
             if not search:
                 search = None
 
-        # Build query
-        query = supabase_logger.client.table("query_logs").select("*")
+        # Single query: fetch data + count in one request.
+        # We exclude heavy columns (debug_info, sources) on the Python side
+        # since they're only needed in the detail view (GET /logs/{log_id}).
+        query = supabase_logger.client.table("query_logs").select("*", count="exact")
 
         # Apply filters
         if user_id:
@@ -111,6 +114,9 @@ async def get_query_logs(
         if date_to:
             query = query.lte("created_at", f"{date_to}T23:59:59")
 
+        if has_answer is not None:
+            query = query.eq("has_answer", has_answer)
+
         # Order by most recent first
         query = query.order("created_at", desc=True)
 
@@ -120,22 +126,15 @@ async def get_query_logs(
         # Apply pagination
         query = query.range(offset, offset + page_size - 1)
 
-        # Execute query
+        # Execute — one round trip for both data and count
         response = query.execute()
+        total_count = response.count if response.count is not None else len(response.data)
 
-        # Get total count (for pagination metadata)
-        count_query = supabase_logger.client.table("query_logs").select("*", count="exact")
-        if user_id:
-            count_query = count_query.eq("user_id", user_id)
-        if search:
-            count_query = count_query.or_(f"question.ilike.%{search}%,answer.ilike.%{search}%")
-        if date_from:
-            count_query = count_query.gte("created_at", f"{date_from}T00:00:00")
-        if date_to:
-            count_query = count_query.lte("created_at", f"{date_to}T23:59:59")
-
-        count_response = count_query.execute()
-        total_count = count_response.count if hasattr(count_response, 'count') else len(response.data)
+        # Strip heavy fields from list response — debug_info and sources
+        # are only needed in the detail view (GET /logs/{log_id})
+        for row in response.data:
+            row.pop("debug_info", None)
+            row.pop("sources", None)
 
         logger.info(
             "query_logs_fetched",
@@ -231,7 +230,7 @@ async def get_logs_summary(
 
 @router.get("/{log_id}", response_model=QueryLogEntry)
 async def get_single_log(
-    log_id: int,
+    log_id: str,
     username: str = Depends(get_current_user_simple)
 ):
     """

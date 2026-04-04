@@ -41,7 +41,9 @@ class AddWhitelistRequest(BaseModel):
 
 class UpdateWhitelistRequest(BaseModel):
     """Request to update a whitelisted number."""
+    phone_number: Optional[str] = None
     name: Optional[str] = None
+    department: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -182,8 +184,15 @@ async def update_whitelisted_number(
         
         # Build update dict (only include non-None values)
         update_data = {}
+        if update.phone_number is not None:
+            phone = update.phone_number.strip()
+            if not phone.startswith("whatsapp:"):
+                phone = f"whatsapp:{phone}"
+            update_data["phone_number"] = phone
         if update.name is not None:
             update_data["name"] = update.name
+        if update.department is not None:
+            update_data["department"] = update.department
         if update.is_active is not None:
             update_data["is_active"] = update.is_active
         if update.notes is not None:

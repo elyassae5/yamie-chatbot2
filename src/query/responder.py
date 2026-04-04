@@ -305,6 +305,11 @@ class Responder:
             "niet beschikbaar in",
             "don't see any information",
             "zie geen informatie",
+            "geven geen specifieke informatie",
+            "geen specifieke informatie",
+            "heb ik geen informatie",
+            "kan ik je niet vertellen",
+            "is mij niet bekend",
         ]
         
         answer_lower = answer.lower()

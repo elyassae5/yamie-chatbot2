@@ -225,15 +225,49 @@ async def get_sync_status(
     Get the current sync status: last sync time per source and
     whether a sync is currently running.
 
+    Lightweight — reads directly from Supabase and the static source
+    registry without instantiating the heavy ContentSyncService
+    (which initializes Pinecone, OpenAI embeddings, etc.).
+
     Requires authentication.
     """
     logger.info("sync_status_requested", requested_by=username)
 
     try:
-        from src.ingestion.sync_service import ContentSyncService
+        from src.ingestion.notion_pipeline import NOTION_SOURCES
+        from src.database import get_supabase_logger
 
-        service = ContentSyncService()
-        status = service.get_sync_status()
+        supabase_logger = get_supabase_logger()
+
+        # Fetch recent successful syncs to find last sync time per source
+        sync_response = (
+            supabase_logger.client
+            .table("sync_logs")
+            .select("completed_at, details")
+            .in_("status", ["success", "no_changes"])
+            .order("completed_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+
+        # Build last-sync-time lookup per source key
+        last_sync_times: Dict[str, str] = {}
+        for row in (sync_response.data or []):
+            details = row.get("details") or {}
+            source_results = details.get("source_results", [])
+            for sr in source_results:
+                sk = sr.get("source_key", "")
+                if sk and sk not in last_sync_times:
+                    last_sync_times[sk] = row.get("completed_at", "")
+
+        # Build status dict from static source registry
+        status: Dict[str, Any] = {}
+        for source_key, source in NOTION_SOURCES.items():
+            status[source_key] = {
+                "name": source.name,
+                "namespace": source.namespace,
+                "last_sync": last_sync_times.get(source_key),
+            }
 
         # Add lock status from database
         lock_status = _is_sync_running()
@@ -273,25 +307,17 @@ async def get_sync_history(
 
         supabase_logger = get_supabase_logger()
 
-        # Get total count
-        count_response = (
-            supabase_logger.client
-            .table("sync_logs")
-            .select("id", count="exact")
-            .execute()
-        )
-        total = count_response.count or 0
-
-        # Get paginated results
+        # Single query: data + count in one request
         offset = (page - 1) * page_size
         response = (
             supabase_logger.client
             .table("sync_logs")
-            .select("*")
+            .select("*", count="exact")
             .order("completed_at", desc=True)
             .range(offset, offset + page_size - 1)
             .execute()
         )
+        total = response.count if response.count is not None else len(response.data or [])
 
         logs = [
             SyncHistoryEntry(

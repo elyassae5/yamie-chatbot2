@@ -18,6 +18,9 @@ export interface CreateWhitelistEntry {
 }
 
 export interface UpdateWhitelistEntry {
+  phone_number?: string;
+  name?: string;
+  department?: string;
   is_active?: boolean;
   notes?: string;
 }

@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, Power, PowerOff } from "lucide-react";
+import { Plus, Trash2, Power, PowerOff, Pencil } from "lucide-react";
 import type { WhitelistEntry } from "@/api/whitelist";
 import {
   getWhitelist,
@@ -35,7 +35,15 @@ export default function WhitelistPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<WhitelistEntry | null>(null);
   const [formData, setFormData] = useState({
+    phone_number: "",
+    name: "",
+    department: "",
+    notes: "",
+  });
+  const [editFormData, setEditFormData] = useState({
     phone_number: "",
     name: "",
     department: "",
@@ -68,6 +76,35 @@ export default function WhitelistPage() {
       loadWhitelist();
     } catch (err) {
       setError("Kon nummer niet toevoegen");
+    }
+  };
+
+  const openEditDialog = (entry: WhitelistEntry) => {
+    setEditingEntry(entry);
+    setEditFormData({
+      phone_number: entry.phone_number.replace("whatsapp:", ""),
+      name: entry.name,
+      department: entry.department || "",
+      notes: entry.notes || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEntry) return;
+    try {
+      await updateWhitelistEntry(editingEntry.id, {
+        phone_number: editFormData.phone_number,
+        name: editFormData.name,
+        department: editFormData.department,
+        notes: editFormData.notes,
+      });
+      setEditDialogOpen(false);
+      setEditingEntry(null);
+      loadWhitelist();
+    } catch (err) {
+      setError("Kon gegevens niet bijwerken");
     }
   };
 
@@ -173,6 +210,70 @@ export default function WhitelistPage() {
           </Dialog>
         </div>
 
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="w-[95vw] max-w-md mx-auto">
+            <DialogHeader>
+              <DialogTitle>Gegevens Bewerken</DialogTitle>
+              <DialogDescription>
+                Wijzig de gegevens van dit nummer
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div>
+                <Label htmlFor="edit_phone_number">Telefoonnummer *</Label>
+                <Input
+                  id="edit_phone_number"
+                  placeholder="+31612345678"
+                  value={editFormData.phone_number}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, phone_number: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_name">Naam *</Label>
+                <Input
+                  id="edit_name"
+                  placeholder="Jan Jansen"
+                  value={editFormData.name}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, name: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_department">Afdeling *</Label>
+                <Input
+                  id="edit_department"
+                  placeholder="Manager"
+                  value={editFormData.department}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, department: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_notes">Notities</Label>
+                <Input
+                  id="edit_notes"
+                  placeholder="Extra informatie (optioneel)"
+                  value={editFormData.notes}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, notes: e.target.value })
+                  }
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                Opslaan
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{error}</AlertDescription>
@@ -220,6 +321,14 @@ export default function WhitelistPage() {
                     </Badge>
                   </div>
                   <div className="flex gap-2 mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => openEditDialog(entry)}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" /> Bewerken
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -289,6 +398,13 @@ export default function WhitelistPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(entry)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
