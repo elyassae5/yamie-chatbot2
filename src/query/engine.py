@@ -88,40 +88,29 @@ class QueryEngine:
         question: str,
         user_id: str = "default_user",
         top_k: Optional[int] = None,
-        category_filter: Optional[str] = None,
     ) -> QueryResponse:
         """
         Answer a question using the RAG pipeline.
-        
+
         This is the main entry point for querying the system.
-        
+
         Pipeline stages:
         1. Validate and sanitize input
         2. Create query request object
         3. Retrieve relevant chunks from vector store
         4. Generate answer using LLM
         5. Return structured response
-         
+
         Args:
             question: User's question
             user_id: User identifier for conversation tracking
             top_k: Number of chunks to retrieve (default from config)
-            category_filter: Optional category to search in 
-                           ("menu", "sop", "hr", "equipment", "franchise", "operations")
-            
+
         Returns:
             QueryResponse with answer, sources, and metadata
-            
+
         Raises:
             ValueError: If question is invalid (empty, too long, etc.)
-            
-        Example:
-            >>> engine = QueryEngine()
-            >>> response = engine.query("Wie is Daoud?")
-            >>> print(response.answer)
-            "Daoud is verantwoordelijk voor managementondersteuning..."
-            >>> print(response.sources)
-            [smokey_joes_interne_franchisehandleiding.docx]
         """
         query_start = datetime.utcnow()
         
@@ -130,7 +119,6 @@ class QueryEngine:
             question=question,
             user_id=user_id,
             top_k=top_k or self.config.query_top_k,
-            category_filter=category_filter
         )
         
         # Sanitize input
@@ -145,7 +133,6 @@ class QueryEngine:
         request = QueryRequest(
             question=question,
             top_k=top_k or self.config.query_top_k,
-            category_filter=category_filter,
         )
         
         # Validate request
@@ -176,7 +163,6 @@ class QueryEngine:
             stage="1/2",
             query=search_question,
             top_k=request.top_k,
-            category_filter=category_filter
         )
         
         try:
@@ -501,33 +487,6 @@ Answer with ONLY the question, nothing else:"""
         return question
     
 
-    def _create_no_results_response(self, question: str, query_start: datetime) -> QueryResponse:
-        """
-        Create a response when no relevant chunks are found.
-        
-        Args:
-            question: Original question
-            query_start: Query start time
-            
-        Returns:
-            QueryResponse indicating no information available
-        """
-        response_time = (datetime.utcnow() - query_start).total_seconds()
-        
-        logger.info(
-            "no_results_response_created",
-            question=question,
-            response_time_seconds=response_time
-        )
-        
-        return QueryResponse(
-            question=question,
-            answer="Ik heb die informatie niet in de bedrijfsdocumenten.",
-            sources=[],
-            has_answer=False,
-            response_time_seconds=response_time,
-        )
-    
     def _create_error_response(
         self, 
         question: str, 

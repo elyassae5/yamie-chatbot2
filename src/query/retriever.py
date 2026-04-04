@@ -251,7 +251,6 @@ class Retriever:
             top_k=request.top_k,
             namespaces=self.namespaces,
             multi_namespace_mode=self.multi_namespace_mode,
-            category_filter=request.category_filter
         )
         logger.debug("retrieval_question", question=request.question)
         
@@ -327,12 +326,11 @@ class Retriever:
     def _process_nodes(self, nodes, request: QueryRequest) -> List[RetrievedChunk]:
         """
         Process raw nodes from Pinecone into RetrievedChunk objects.
-        Applies category filtering only. Similarity threshold filtering
-        is handled by the query engine, so all consumers (debug tools,
-        admin dashboard, API) can access the full retrieval results.
+        Similarity threshold filtering is handled by the query engine,
+        so all consumers (debug tools, admin dashboard, API) can access
+        the full retrieval results.
         """
         chunks = []
-        filtered_count = 0
         
         for node in nodes:
             # Extract metadata
@@ -347,17 +345,6 @@ class Retriever:
             similarity_score = node.score if node.score is not None else 0.0
             namespace = node.metadata.get('_namespace', 'unknown')
             
-            # Apply category filter if specified
-            if request.category_filter and category != request.category_filter:
-                logger.debug(
-                    "chunk_filtered_by_category",
-                    source=source,
-                    chunk_category=category,
-                    requested_category=request.category_filter
-                )
-                filtered_count += 1
-                continue
-            
             # Create chunk object
             chunk = RetrievedChunk(
                 text=node.text,
@@ -370,13 +357,6 @@ class Retriever:
                 },
             )
             chunks.append(chunk)
-        
-        if filtered_count > 0:
-            logger.debug(
-                "chunks_filtered",
-                filtered_count=filtered_count,
-                remaining_count=len(chunks)
-            )
         
         return chunks
     
@@ -460,109 +440,11 @@ class Retriever:
             )
             return {}
     
-    def add_namespace(self, namespace: str) -> bool:
-        """
-        Dynamically add a namespace to search.
-        
-        Args:
-            namespace: Namespace to add
-            
-        Returns:
-            True if successfully added, False if namespace is empty/invalid
-        """
-        if namespace in self.namespaces:
-            logger.info("namespace_already_active", namespace=namespace)
-            return True
-        
-        try:
-            pinecone_index = self._pinecone_client.Index(self.config.pinecone_index_name)
-            stats = pinecone_index.describe_index_stats()
-            
-            namespace_stats = stats.get('namespaces', {}).get(namespace, {})
-            vector_count = namespace_stats.get('vector_count', 0)
-            
-            if vector_count == 0:
-                logger.warning("cannot_add_empty_namespace", namespace=namespace)
-                return False
-            
-            # Create vector store and index
-            vector_store = PineconeVectorStore(
-                pinecone_index=pinecone_index,
-                namespace=namespace,
-            )
-            
-            index = VectorStoreIndex.from_vector_store(
-                vector_store=vector_store,
-                embed_model=self._embed_model,
-            )
-            
-            self._indexes[namespace] = index
-            self.namespaces.append(namespace)
-            self.multi_namespace_mode = len(self.namespaces) > 1
-            
-            logger.info(
-                "namespace_added",
-                namespace=namespace,
-                vector_count=vector_count,
-                total_namespaces=len(self.namespaces)
-            )
-            return True
-            
-        except Exception as e:
-            logger.error("failed_to_add_namespace", namespace=namespace, error=str(e))
-            return False
-    
-    def remove_namespace(self, namespace: str) -> bool:
-        """
-        Remove a namespace from search.
-        
-        Args:
-            namespace: Namespace to remove
-            
-        Returns:
-            True if removed, False if not found or is last namespace
-        """
-        if namespace not in self.namespaces:
-            logger.warning("namespace_not_found", namespace=namespace)
-            return False
-        
-        if len(self.namespaces) == 1:
-            logger.error("cannot_remove_last_namespace", namespace=namespace)
-            return False
-        
-        self.namespaces.remove(namespace)
-        if namespace in self._indexes:
-            del self._indexes[namespace]
-        
-        self.multi_namespace_mode = len(self.namespaces) > 1
-        
-        logger.info(
-            "namespace_removed",
-            namespace=namespace,
-            remaining_namespaces=self.namespaces
-        )
-        return True
 
 
 # =============================================================================
 # FACTORY FUNCTIONS
 # =============================================================================
-
-def create_single_namespace_retriever(namespace: str = None, config: Config = None) -> Retriever:
-    """
-    Create a retriever for a single namespace.
-    
-    Args:
-        namespace: Namespace to search (defaults to config.pinecone_namespace)
-        config: Optional config object
-        
-    Returns:
-        Configured Retriever instance
-    """
-    config = config or get_config()
-    ns = namespace or config.pinecone_namespace
-    return Retriever(config=config, namespaces=[ns])
-
 
 def create_multi_namespace_retriever(namespaces: List[str], config: Config = None) -> Retriever:
     """
@@ -586,28 +468,3 @@ def create_multi_namespace_retriever(namespaces: List[str], config: Config = Non
     return Retriever(config=config, namespaces=namespaces)
 
 
-def create_all_namespaces_retriever(config: Config = None) -> Retriever:
-    """
-    Create a retriever that searches ALL available namespaces.
-    
-    Args:
-        config: Optional config object
-        
-    Returns:
-        Configured Retriever instance searching all namespaces
-    """
-    config = config or get_config()
-    
-    # Get all namespaces from Pinecone
-    pc = Pinecone(api_key=config.pinecone_api_key)
-    index = pc.Index(config.pinecone_index_name)
-    stats = index.describe_index_stats()
-    
-    all_namespaces = list(stats.get('namespaces', {}).keys())
-    
-    if not all_namespaces:
-        raise ValueError("No namespaces found in Pinecone index")
-    
-    logger.info("creating_all_namespace_retriever", namespaces=all_namespaces)
-    
-    return Retriever(config=config, namespaces=all_namespaces)

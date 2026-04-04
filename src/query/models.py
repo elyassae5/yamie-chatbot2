@@ -4,7 +4,7 @@ Defines typed structures for requests, responses, and retrieved chunks.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 
 
@@ -30,18 +30,14 @@ class QueryRequest:
     """
     question: str                      # User's question
     top_k: int = 5                     # Number of chunks to retrieve
-    category_filter: Optional[str] = None  # Optional category filter (e.g., "menu")
-     
+
     def validate(self) -> None:
         """Validate the request."""
         if not self.question or not self.question.strip():
             raise ValueError("Question cannot be empty")
-        
+
         if self.top_k < 1 or self.top_k > 20:
             raise ValueError("top_k must be between 1 and 20")
-        
-        # Note: category_filter is not validated against a fixed list.
-        # Documents use namespace-based organization, not categories.
 
 
 @dataclass
