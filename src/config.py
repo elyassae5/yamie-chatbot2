@@ -6,7 +6,10 @@ load_dotenv()
 
 @dataclass
 class Config:
-    # OpenAI
+    # Anthropic (LLM — Claude Sonnet 4.6 for answer generation)
+    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+
+    # OpenAI (embeddings only — must match what was ingested into Pinecone)
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = "text-embedding-3-large"
     embedding_dimensions: int = 3072
@@ -28,14 +31,14 @@ class Config:
     query_top_k: int = 10                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.35
     
-    # LLM Settings
-    llm_model: str = "gpt-4o"                    # OpenAI model for generation
+    # LLM Settings (Claude Sonnet 4.6 — model constant lives in src/agent/agent.py)
     llm_temperature: float = 0.3            # Low = more factual, high = more creative
-    llm_max_tokens: int = 500               # Max response length
+    llm_max_tokens: int = 1500              # Max tokens per response (includes tool_use blocks)
 
     # Timeout configuration
-    openai_timeout_seconds: int = 30  # Max 30s for OpenAI API calls
-    pinecone_timeout_seconds: int = 10  # Max 10s for Pinecone queries
+    anthropic_timeout_seconds: int = 60  # Max 60s for Claude API calls (agentic loop can take longer)
+    openai_timeout_seconds: int = 30     # Max 30s for OpenAI embedding calls
+    pinecone_timeout_seconds: int = 10   # Max 10s for Pinecone queries
     redis_timeout_seconds: int = 5  # Max 5s for Redis operations
 
     # Redis Settings (for caching + conversation memory)
@@ -59,10 +62,13 @@ class Config:
     def validate(self):
         """Validate all configuration"""
         errors = []
-        
+
         # Validate API keys (CRITICAL for production)
+        if not self.anthropic_api_key:
+            errors.append("ANTHROPIC_API_KEY missing — needed for Claude LLM calls")
+
         if not self.openai_api_key:
-            errors.append("OPENAI_API_KEY missing")
+            errors.append("OPENAI_API_KEY missing — needed for embeddings")
         
         if not self.pinecone_api_key:
             errors.append("PINECONE_API_KEY missing")
@@ -119,6 +125,7 @@ class Config:
             "config_temperature": self.llm_temperature,
             "config_max_tokens": self.llm_max_tokens,
             "config_embedding_model": self.embedding_model,
+            "config_llm_temperature": self.llm_temperature,
         }
 
 def get_config() -> Config:
