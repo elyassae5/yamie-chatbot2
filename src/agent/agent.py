@@ -157,56 +157,55 @@ class YamieAgent:
 
             # ── Case 2: Claude wants to search ───────────────────────────────
             elif response.stop_reason == "tool_use":
-                tool_use_block = next(
-                    (b for b in response.content if b.type == "tool_use"), None
-                )
+                # Claude can return MULTIPLE tool_use blocks in one response.
+                # We must provide a tool_result for EVERY tool_use_id or the API returns 400.
+                tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
 
-                if not tool_use_block:
+                if not tool_use_blocks:
                     logger.error("tool_use_block_missing")
                     final_answer = self._extract_text(response)
                     break
 
-                tool_input = tool_use_block.input
-                tool_calls_made += 1
+                tool_calls_made += len(tool_use_blocks)
 
-                logger.info(
-                    "tool_called",
-                    call_number=tool_calls_made,
-                    query=tool_input.get("query", "")[:100],
-                    namespaces=tool_input.get("namespaces"),
-                    top_k=tool_input.get("top_k"),
-                )
+                # Execute each requested search and collect results
+                tool_results = []
+                for tool_use_block in tool_use_blocks:
+                    tool_input = tool_use_block.input
 
-                # Execute the search
-                try:
-                    passed, filtered = self.searcher.search(
-                        query=tool_input["query"],
+                    logger.info(
+                        "tool_called",
+                        call_number=tool_calls_made,
+                        query=tool_input.get("query", "")[:100],
                         namespaces=tool_input.get("namespaces"),
-                        top_k=tool_input.get("top_k") or top_k or self.config.query_top_k,
+                        top_k=tool_input.get("top_k"),
                     )
-                except Exception as e:
-                    logger.error("tool_execution_failed", error=str(e))
-                    passed, filtered = [], []
 
-                all_passed_chunks.extend(passed)
-                all_filtered_chunks.extend(filtered)
+                    try:
+                        passed, filtered = self.searcher.search(
+                            query=tool_input["query"],
+                            namespaces=tool_input.get("namespaces"),
+                            top_k=tool_input.get("top_k") or top_k or self.config.query_top_k,
+                        )
+                    except Exception as e:
+                        logger.error("tool_execution_failed", error=str(e))
+                        passed, filtered = [], []
 
-                tool_result_text = self.searcher.format_for_claude(passed)
+                    all_passed_chunks.extend(passed)
+                    all_filtered_chunks.extend(filtered)
 
-                # Extend the messages array with Claude's tool_use + our tool_result.
-                # This is the correct Anthropic API pattern for tool calls.
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_block.id,
+                        "content": self.searcher.format_for_claude(passed),
+                    })
+
+                # Extend messages: assistant's full response + ALL tool results in one user message.
+                # Serialize response.content to plain dicts — avoids Pydantic object issues
+                # and ensures empty text blocks (common before tool_use) don't cause problems.
                 messages = messages + [
-                    {"role": "assistant", "content": response.content},
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_block.id,
-                                "content": tool_result_text,
-                            }
-                        ],
-                    },
+                    {"role": "assistant", "content": self._serialize_content(response.content)},
+                    {"role": "user", "content": tool_results},
                 ]
 
                 # Hit the ceiling — force a final answer without tools
@@ -306,6 +305,29 @@ class YamieAgent:
         messages.append({"role": "user", "content": current_question})
 
         return messages
+
+    def _serialize_content(self, content) -> list[dict]:
+        """
+        Serialize Claude response content blocks to plain dicts.
+
+        The Anthropic SDK returns Pydantic model objects. When feeding them back
+        into the messages array, we convert to plain dicts to avoid SDK version
+        inconsistencies. Empty text blocks (common when Claude prefaces tool_use
+        with a short text block) are included only when non-empty.
+        """
+        result = []
+        for block in content:
+            if block.type == "text":
+                if block.text:  # Skip empty text blocks
+                    result.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                result.append({
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                })
+        return result
 
     def _extract_text(self, response) -> str:
         """Extract the text content from a Claude API response."""
