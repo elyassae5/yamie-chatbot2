@@ -170,7 +170,7 @@ async def query(
         # Log to Supabase
         try:
             from src.database import get_supabase_logger
-            from src.query.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
+            from src.agent.system_prompt import ACTIVE_SYSTEM_PROMPT_VERSION
             
             supabase_logger = get_supabase_logger()
             
