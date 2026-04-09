@@ -31,9 +31,10 @@ class Config:
     query_top_k: int = 10                  # Number of chunks to retrieve
     query_similarity_threshold: float = 0.35
     
-    # LLM Settings (Claude Sonnet 4.6 — model constant lives in src/agent/agent.py)
-    llm_temperature: float = 0.3            # Low = more factual, high = more creative
-    llm_max_tokens: int = 1500              # Max tokens per response (includes tool_use blocks)
+    # LLM Settings
+    llm_model: str = "claude-sonnet-4-6"   # Used for logging — must match constant in src/agent/agent.py
+    llm_temperature: float = 0.3
+    llm_max_tokens: int = 1500             # Covers tool_use blocks + final answer
 
     # Timeout configuration
     anthropic_timeout_seconds: int = 60  # Max 60s for Claude API calls (agentic loop can take longer)
