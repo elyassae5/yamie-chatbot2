@@ -8,6 +8,7 @@ import {
   Settings,
   LogOut,
   RefreshCw,
+  MessageSquare,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -26,6 +27,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/chat", icon: MessageSquare, label: "Chat" },
     { path: "/whitelist", icon: Phone, label: "Nummers" },
     { path: "/logs", icon: FileText, label: "Vragen" },
     { path: "/sync", icon: RefreshCw, label: "Sync" },

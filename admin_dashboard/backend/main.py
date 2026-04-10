@@ -59,15 +59,16 @@ if config.cors_enabled:
 
 
 # Include routers
-from admin_dashboard.backend.routes import auth, whitelist, logs, system, sync
+from admin_dashboard.backend.routes import auth, whitelist, logs, system, sync, chat
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(whitelist.router, prefix="/api/whitelist", tags=["Whitelist Management"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Query Logs"])
 app.include_router(system.router, prefix="/api/system", tags=["System Status"])
 app.include_router(sync.router, prefix="/api/sync", tags=["Content Sync"])
+app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 
-logger.info("routers_registered", routers=["auth", "whitelist", "logs", "system", "sync"])
+logger.info("routers_registered", routers=["auth", "whitelist", "logs", "system", "sync", "chat"])
 
 logger.info(
     "docs_status",

@@ -6,6 +6,7 @@ import WhitelistPage from "./pages/WhitelistPage";
 import LogsPage from "./pages/LogsPage";
 import SystemPage from "./pages/SystemPage";
 import SyncPage from "./pages/SyncPage";
+import ChatPage from "./pages/ChatPage";
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -60,6 +61,15 @@ function App() {
           element={
             <ProtectedRoute>
               <SyncPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
             </ProtectedRoute>
           }
         />
