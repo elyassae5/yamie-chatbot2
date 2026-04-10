@@ -266,31 +266,22 @@ export default function LogsPage() {
           </p>
         </div>
 
-        {/* Stats - 4 cards */}
+        {/* Stats cards */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {loading && !stats
             ? Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="bg-white shadow rounded-lg p-4 animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-md flex-shrink-0" />
-                    <div className="flex-1">
-                      <div className="h-3 bg-gray-200 rounded w-16 mb-2" />
-                      <div className="h-6 bg-gray-200 rounded w-10" />
-                    </div>
-                  </div>
+                <div key={i} className="bg-white shadow rounded-lg p-3 animate-pulse">
+                  <div className="h-3 bg-gray-200 rounded w-10 mb-2 mx-auto" />
+                  <div className="h-6 bg-gray-200 rounded w-8 mx-auto" />
                 </div>
               ))
             : statCards.map(({ label, value, icon: Icon, color, bg }) => (
-                <div key={label} className="bg-white shadow rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`shrink-0 ${bg} rounded-md p-2.5`}>
-                      <Icon className={`h-5 w-5 ${color}`} />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className={`text-xl font-bold ${color}`}>{value}</p>
-                    </div>
+                <div key={label} className="bg-white shadow rounded-lg p-3 flex flex-col items-center text-center">
+                  <div className={`${bg} rounded-md p-2 mb-1.5`}>
+                    <Icon className={`h-4 w-4 ${color}`} />
                   </div>
+                  <p className={`text-lg font-bold leading-none ${color}`}>{value}</p>
+                  <p className="text-xs text-gray-400 mt-1 leading-tight">{label}</p>
                 </div>
               ))}
         </div>
