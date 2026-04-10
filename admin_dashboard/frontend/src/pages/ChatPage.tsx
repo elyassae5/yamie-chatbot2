@@ -28,6 +28,17 @@ interface ChatApiResponse {
   sources: Source[];
 }
 
+// Render *bold* markdown (WhatsApp format the bot uses) as <strong>
+function renderText(text: string) {
+  const parts = text.split(/(\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <strong key={i} className="font-semibold">{part.slice(1, -1)}</strong>;
+    }
+    return part;
+  });
+}
+
 const SUGGESTED_QUESTIONS = [
   "Wat zijn de openingstijden van Yamie Amsterdam?",
   "Wat is de procedure bij ziekteverzuim?",
@@ -142,7 +153,7 @@ export default function ChatPage() {
 
         {/* Message thread */}
         {hasMessages && (
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-6 px-1 py-2">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 space-y-6 px-1 py-2">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -172,7 +183,7 @@ export default function ChatPage() {
                         : "bg-white border border-gray-100 text-gray-800 rounded-tl-sm"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                    <p className="whitespace-pre-wrap break-words">{renderText(msg.text)}</p>
 
                     {/* Sources */}
                     {msg.role === "bot" && msg.sources && msg.sources.length > 0 && (
