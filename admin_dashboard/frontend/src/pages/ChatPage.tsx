@@ -104,7 +104,7 @@ export default function ChatPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
+      <div className="flex flex-col h-[calc(100vh-8rem)]">
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Chat</h1>
           <p className="text-sm text-gray-500">Stel vragen aan YamieBot</p>
@@ -156,9 +156,9 @@ export default function ChatPage() {
             <div className="flex justify-start">
               <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
                 <div className="flex space-x-1 items-center h-4">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
             </div>

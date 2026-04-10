@@ -326,32 +326,32 @@ export default function WhitelistPage() {
                       size="sm"
                       className="flex-1"
                       onClick={() => openEditDialog(entry)}
+                      title="Bewerken"
                     >
-                      <Pencil className="h-4 w-4 mr-1" /> Bewerken
+                      <Pencil className="h-4 w-4 mr-1.5" />
+                      <span className="text-xs">Bewerken</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       className="flex-1"
                       onClick={() => handleToggleActive(entry)}
+                      title={entry.is_active ? "Deactiveren" : "Activeren"}
                     >
                       {entry.is_active ? (
-                        <>
-                          <PowerOff className="h-4 w-4 mr-1" /> Deactiveren
-                        </>
+                        <><PowerOff className="h-4 w-4 mr-1.5" /><span className="text-xs">Deact.</span></>
                       ) : (
-                        <>
-                          <Power className="h-4 w-4 mr-1" /> Activeren
-                        </>
+                        <><Power className="h-4 w-4 mr-1.5" /><span className="text-xs">Activ.</span></>
                       )}
                     </Button>
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="flex-1"
+                      className="px-3"
                       onClick={() => handleDelete(entry.id)}
+                      title="Verwijderen"
                     >
-                      <Trash2 className="h-4 w-4 mr-1" /> Verwijderen
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
