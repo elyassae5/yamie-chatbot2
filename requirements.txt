@@ -38,6 +38,12 @@ twilio==9.10.3
 
 llama-index-readers-notion==0.5.0
 
+# Official Notion Python SDK — used by src/agent/forms_data.py to query the
+# 7 form-submission DBs via the agent's query_forms_data tool. Keep it
+# explicit (rather than relying on llama-index-readers-notion's transitive
+# pull) so the version is stable and audit-trail-clear.
+notion-client==2.5.0
+
 pypdf==6.8.0
 tiktoken==0.12.0
 

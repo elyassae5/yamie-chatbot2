@@ -1,11 +1,24 @@
 """
 Tool definitions and execution for the YamieBot agent.
 
-The agent has one primary tool: search_knowledge_base.
-Claude calls this tool autonomously — it decides when to search,
-what to search for, and can issue multiple refined searches before answering.
+The agent has two tools, both Dutch-described:
 
-No LlamaIndex. Direct Pinecone SDK calls.
+1. search_knowledge_base
+   Semantic retrieval over the Notion KB (procedures, SOPs, vestiging
+   documents, menus, allergens). Pinecone + OpenAI embeddings. Use for
+   "what does the SOP say about X" type questions.
+
+2. query_forms_data
+   Structured query over the 7 form-submission Notion DBs (Voorbezoek,
+   Leveranciers, Personeelstraining, Go/No-Go, Rapport, Nabezoek, Quality
+   check). Uses Notion's filter API. Use for "how many kritieke bevindingen
+   at Yamie Haarlem this month" type questions, where vector search would
+   collapse the structure.
+
+Claude picks the tool autonomously per question. Both can be called in the
+same turn for hybrid questions.
+
+No LlamaIndex in the query path. Direct Pinecone SDK + Notion SDK.
 Embeddings still use OpenAI text-embedding-3-large (must match what was ingested).
 """
 
@@ -95,6 +108,143 @@ SEARCH_KNOWLEDGE_BASE_TOOL = {
             },
         },
         "required": ["query"],
+    },
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QUERY_FORMS_DATA TOOL SCHEMA
+# Structured query over the 7 form-submission Notion DBs. Execution lives in
+# src/agent/forms_data.py (FormsDataQuerier). This module only owns the
+# Claude-facing schema; agent.py wires execution.
+# ─────────────────────────────────────────────────────────────────────────────
+
+QUERY_FORMS_DATA_TOOL = {
+    "name": "query_forms_data",
+    "description": (
+        "Doorzoek de inzendingen van de 7 operationele formulieren "
+        "(Voorbezoek, Leveranciers, Personeelstraining, Go/No-Go, Rapport "
+        "van bevindingen, Nabezoek, Quality check) op gestructureerde wijze.\n\n"
+        "Gebruik dit tool wanneer iemand vraagt naar:\n"
+        "- Aantallen of statistieken over inzendingen "
+        "(\"hoeveel kritieke bevindingen had Yamie Haarlem deze maand?\")\n"
+        "- Vergelijkingen tussen vestigingen "
+        "(\"welke vestiging scoort het slechtst op kritiek?\")\n"
+        "- Recente inzendingen of historie "
+        "(\"laatste 5 voorbezoeken bij Flamin'wok\")\n"
+        "- Operationele KPI's per merk, vestiging of inwerker.\n\n"
+        "Gebruik dit tool NIET voor:\n"
+        "- Vragen over procedures, SOPs of beleid (gebruik search_knowledge_base)\n"
+        "- Vragen over menu's, allergenen of contactgegevens "
+        "(gebruik search_knowledge_base)\n"
+        "- Begroetingen of smalltalk (geen tool).\n\n"
+        "Tips:\n"
+        "- Begin met form_type='all' als de vraag niet specifiek één formuliertype noemt.\n"
+        "- Gebruik vestiging-substring (bv 'Haarlem') als de gebruiker een locatie noemt.\n"
+        "- Standaard date_range is 'last_30_days'; verbreed naar 'last_90_days' "
+        "of 'all_time' als eerste resultaat leeg is.\n"
+        "- 'severity' = 'kritiek' filtert op de zwaarste bevindingen; "
+        "'any_findings' = kritiek of aandachtspunten samen."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "form_type": {
+                "type": "string",
+                "enum": [
+                    "voorbezoek",
+                    "leveranciers",
+                    "personeelstraining",
+                    "gonogo",
+                    "rapport",
+                    "nabezoek",
+                    "quality_check",
+                    "all",
+                ],
+                "description": (
+                    "Welk formuliertype doorzoeken. 'all' doorzoekt alle 7 DB's "
+                    "en aggregeert het resultaat."
+                ),
+            },
+            "aggregation": {
+                "type": "string",
+                "enum": [
+                    "count",
+                    "list_submissions",
+                    "list_findings_summary",
+                    "score_per_franchise",
+                ],
+                "description": (
+                    "Hoe het resultaat terug te geven. "
+                    "'count' = totaal aantal + status-verdeling. "
+                    "'list_submissions' = lijst met meta-info per inzending. "
+                    "'list_findings_summary' = lijst plus de Samenvatting-tekst. "
+                    "'score_per_franchise' = ranking van vestigingen op basis "
+                    "van bevindingen (beste eerst)."
+                ),
+            },
+            "brand": {
+                "type": "string",
+                "enum": ["yamie", "flamin", "smokey"],
+                "description": (
+                    "Optioneel: filter op concept/merk. 'yamie' = Yamie Pastabar, "
+                    "'flamin' = Flamin'wok, 'smokey' = Smokey Joe's. "
+                    "Niet beschikbaar voor Go/No-Go (heeft geen Concept-veld); "
+                    "die wordt overgeslagen als brand is ingevuld."
+                ),
+            },
+            "vestiging": {
+                "type": "string",
+                "description": (
+                    "Optioneel: substring-match op de vestiging-naam "
+                    "(bijvoorbeeld 'Haarlem', 'Hoofddorp', 'Amsterdam Zuid'). "
+                    "Hoofdletter-ongevoelig is niet gegarandeerd; gebruik de "
+                    "schrijfwijze die in de naam staat."
+                ),
+            },
+            "date_range": {
+                "type": "string",
+                "enum": [
+                    "last_7_days",
+                    "last_30_days",
+                    "last_90_days",
+                    "this_month",
+                    "all_time",
+                ],
+                "description": (
+                    "Periode-filter op de submissie-datum. "
+                    "Standaard 'last_30_days' als niet opgegeven."
+                ),
+            },
+            "severity": {
+                "type": "string",
+                "enum": [
+                    "kritiek",
+                    "aandachtspunten",
+                    "any_findings",
+                    "voltooid",
+                    "all",
+                ],
+                "description": (
+                    "Filter op status/ernst. "
+                    "'kritiek' = alleen zware bevindingen. "
+                    "'aandachtspunten' = alleen aandachtspunten. "
+                    "'any_findings' = kritiek of aandachtspunten samen. "
+                    "'voltooid' = inzendingen zonder bevindingen. "
+                    "'all' = alles, geen filter (default)."
+                ),
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "description": (
+                    "Maximaal aantal rijen voor list-aggregaties. Default 10. "
+                    "Niet relevant voor 'count'."
+                ),
+            },
+        },
+        "required": ["form_type", "aggregation"],
     },
 }
 

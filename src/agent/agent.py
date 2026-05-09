@@ -25,7 +25,12 @@ import anthropic
 
 from src.config import Config, get_config
 from src.agent.models import QueryResponse, RetrievedChunk
-from src.agent.tools import KnowledgeBaseSearcher, SEARCH_KNOWLEDGE_BASE_TOOL
+from src.agent.tools import (
+    KnowledgeBaseSearcher,
+    QUERY_FORMS_DATA_TOOL,
+    SEARCH_KNOWLEDGE_BASE_TOOL,
+)
+from src.agent.forms_data import FormsDataQuerier
 from src.agent.system_prompt import ACTIVE_SYSTEM_PROMPT, ACTIVE_SYSTEM_PROMPT_VERSION
 from src.memory.conversation_memory import ConversationMemory
 
@@ -66,12 +71,17 @@ class YamieAgent:
         try:
             self.client = anthropic.Anthropic(api_key=self.config.anthropic_api_key)
             self.searcher = KnowledgeBaseSearcher(config=self.config)
+            # Forms data tool. Hard-fails on missing NOTION_API_KEY at init,
+            # which is what we want — the chatbot already needs Notion for
+            # ingestion, so the key is always set in practice.
+            self.forms_querier = FormsDataQuerier(config=self.config)
             self.memory = ConversationMemory(config=self.config)
 
             logger.info(
                 "yamie_agent_initialized",
                 model=CLAUDE_MODEL,
                 system_prompt_version=ACTIVE_SYSTEM_PROMPT_VERSION,
+                tools=["search_knowledge_base", "query_forms_data"],
                 status="ready",
             )
 
@@ -121,6 +131,10 @@ class YamieAgent:
         all_passed_chunks: list[RetrievedChunk] = []
         all_filtered_chunks: list[RetrievedChunk] = []
         tool_calls_made = 0
+        # Per-tool counters for observability — surfaces which tools Claude
+        # actually used per query in Supabase logs and the admin dashboard.
+        search_calls_made = 0
+        forms_calls_made = 0
         final_answer = ""
 
         # ── Agentic loop ──────────────────────────────────────────────────────
@@ -135,7 +149,7 @@ class YamieAgent:
                     max_tokens=self.config.llm_max_tokens,
                     temperature=self.config.llm_temperature,
                     system=ACTIVE_SYSTEM_PROMPT,
-                    tools=[SEARCH_KNOWLEDGE_BASE_TOOL],
+                    tools=[SEARCH_KNOWLEDGE_BASE_TOOL, QUERY_FORMS_DATA_TOOL],
                     messages=messages,
                 )
             except anthropic.APIError as e:
@@ -168,36 +182,104 @@ class YamieAgent:
 
                 tool_calls_made += len(tool_use_blocks)
 
-                # Execute each requested search and collect results
+                # Execute each requested tool call. Dispatch on .name so a
+                # single turn can mix search_knowledge_base and
+                # query_forms_data calls (Claude may need both for hybrid
+                # questions). We must produce ONE tool_result per tool_use_id
+                # or the next API call returns 400.
                 tool_results = []
                 for tool_use_block in tool_use_blocks:
-                    tool_input = tool_use_block.input
+                    tool_name = tool_use_block.name
+                    tool_input = tool_use_block.input or {}
 
-                    logger.info(
-                        "tool_called",
-                        call_number=tool_calls_made,
-                        query=tool_input.get("query", "")[:100],
-                        namespaces=tool_input.get("namespaces"),
-                        top_k=tool_input.get("top_k"),
-                    )
-
-                    try:
-                        passed, filtered = self.searcher.search(
-                            query=tool_input["query"],
+                    if tool_name == "search_knowledge_base":
+                        search_calls_made += 1
+                        logger.info(
+                            "tool_called",
+                            tool="search_knowledge_base",
+                            call_number=tool_calls_made,
+                            query=str(tool_input.get("query", ""))[:100],
                             namespaces=tool_input.get("namespaces"),
-                            top_k=tool_input.get("top_k") or top_k or self.config.query_top_k,
+                            top_k=tool_input.get("top_k"),
                         )
-                    except Exception as e:
-                        logger.error("tool_execution_failed", error=str(e))
-                        passed, filtered = [], []
+                        try:
+                            passed, filtered = self.searcher.search(
+                                query=tool_input["query"],
+                                namespaces=tool_input.get("namespaces"),
+                                top_k=(
+                                    tool_input.get("top_k")
+                                    or top_k
+                                    or self.config.query_top_k
+                                ),
+                            )
+                        except Exception as e:
+                            logger.error(
+                                "tool_execution_failed",
+                                tool="search_knowledge_base",
+                                error=str(e),
+                            )
+                            passed, filtered = [], []
 
-                    all_passed_chunks.extend(passed)
-                    all_filtered_chunks.extend(filtered)
+                        all_passed_chunks.extend(passed)
+                        all_filtered_chunks.extend(filtered)
+                        content = self.searcher.format_for_claude(passed)
+
+                    elif tool_name == "query_forms_data":
+                        forms_calls_made += 1
+                        logger.info(
+                            "tool_called",
+                            tool="query_forms_data",
+                            call_number=tool_calls_made,
+                            form_type=tool_input.get("form_type"),
+                            aggregation=tool_input.get("aggregation"),
+                            brand=tool_input.get("brand"),
+                            vestiging=tool_input.get("vestiging"),
+                            date_range=tool_input.get("date_range"),
+                            severity=tool_input.get("severity"),
+                            limit=tool_input.get("limit"),
+                        )
+                        try:
+                            content = self.forms_querier.query(
+                                form_type=tool_input.get("form_type", ""),
+                                aggregation=tool_input.get("aggregation", "count"),
+                                brand=tool_input.get("brand"),
+                                vestiging=tool_input.get("vestiging"),
+                                date_range=tool_input.get("date_range") or "last_30_days",
+                                severity=tool_input.get("severity") or "all",
+                                limit=tool_input.get("limit") or 10,
+                            )
+                        except Exception as e:
+                            logger.error(
+                                "tool_execution_failed",
+                                tool="query_forms_data",
+                                error=str(e),
+                                error_type=type(e).__name__,
+                            )
+                            # Graceful Dutch fallback so Claude can still
+                            # answer ("ik kan de data nu niet ophalen") rather
+                            # than 500-ing the whole conversation.
+                            content = (
+                                "Sorry, ik kan de formulier-data nu niet ophalen "
+                                "door een tijdelijke storing. Probeer het zo opnieuw "
+                                "of stel je vraag iets anders."
+                            )
+
+                    else:
+                        # Unknown tool name. Defensive — should never happen
+                        # because Claude only sees the two tools we register.
+                        logger.warning(
+                            "tool_called_unknown_name",
+                            tool=tool_name,
+                        )
+                        content = (
+                            "Onbekend tool aangeroepen. Geef een gewoon "
+                            "antwoord op basis van wat je al weet."
+                        )
 
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_use_block.id,
-                        "content": self.searcher.format_for_claude(passed),
+                        "content": content,
                     })
 
                 # Extend messages: assistant's full response + ALL tool results in one user message.
@@ -270,6 +352,8 @@ class YamieAgent:
             user_id=user_id,
             response_time_seconds=round(total_time, 3),
             tool_calls=tool_calls_made,
+            search_calls=search_calls_made,
+            forms_calls=forms_calls_made,
             chunks_passed=len(all_passed_chunks),
             chunks_filtered=len(all_filtered_chunks),
             has_answer=has_answer,
