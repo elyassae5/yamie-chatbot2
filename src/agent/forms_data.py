@@ -334,22 +334,43 @@ class FormsDataQuerier:
     def __init__(self, config: Optional[Config] = None):
         self.config = config or get_config()
 
+        # Fail-soft init: if NOTION_API_KEY is missing or the Notion client
+        # cannot be constructed, log it and disable the tool. The agent can
+        # still answer KB-only questions. Hard-raising here would crash the
+        # whole YamieAgent startup, which would in turn 500 every WhatsApp
+        # webhook and admin chat call. Production-grade demands graceful
+        # degradation when a single subsystem can't initialise.
+        self._enabled: bool = False
+        self._init_error: Optional[str] = None
+        self._client: Optional[Client] = None
+
         if not self.config.notion_api_key:
-            # Defensive: validate() in Config doesn't require this yet, but
-            # the forms tool absolutely does.
-            logger.error("forms_querier_missing_notion_key")
-            raise RuntimeError(
-                "NOTION_API_KEY is required for the forms data tool. "
-                "Set it in your environment."
+            self._init_error = "NOTION_API_KEY missing"
+            logger.warning(
+                "forms_querier_disabled",
+                reason=self._init_error,
             )
+            return
 
-        self._client = Client(auth=self.config.notion_api_key)
+        try:
+            self._client = Client(auth=self.config.notion_api_key)
+            self._enabled = True
+            logger.info(
+                "forms_data_querier_initialized",
+                forms_registered=len(FORM_REGISTRY),
+                max_rows_cap=MAX_ROWS_PER_QUERY,
+            )
+        except Exception as e:
+            self._init_error = f"{type(e).__name__}: {e}"
+            logger.error(
+                "forms_querier_disabled",
+                reason=self._init_error,
+            )
+            return
 
-        logger.info(
-            "forms_data_querier_initialized",
-            forms_registered=len(FORM_REGISTRY),
-            max_rows_cap=MAX_ROWS_PER_QUERY,
-        )
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -383,6 +404,19 @@ class FormsDataQuerier:
         Returns:
             Dutch text formatted for Claude's tool_result.
         """
+        # If init fail-soft'd, return a clear Dutch message so Claude can
+        # still produce a graceful answer for the user.
+        if not self._enabled:
+            logger.warning(
+                "forms_query_called_while_disabled",
+                init_error=self._init_error,
+            )
+            return (
+                "Sorry, ik kan de formulier-data nu niet ophalen "
+                "(de koppeling met Notion is tijdelijk niet beschikbaar). "
+                "Probeer het later opnieuw of neem contact op met je manager."
+            )
+
         # Defensive normalisation.
         limit = max(1, min(limit or DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT))
         date_range = date_range or "last_30_days"
@@ -464,6 +498,8 @@ class FormsDataQuerier:
     def get_stats(self) -> dict:
         """Lightweight stats for the admin dashboard / debugging."""
         return {
+            "enabled": self._enabled,
+            "init_error": self._init_error,
             "forms_registered": len(FORM_REGISTRY),
             "max_rows_per_query": MAX_ROWS_PER_QUERY,
             "default_list_limit": DEFAULT_LIST_LIMIT,
