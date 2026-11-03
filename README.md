@@ -4,6 +4,8 @@ An AI-powered internal knowledge assistant for a multi-brand Dutch restaurant gr
 
 **Brands supported:** Yamie Pastabar · Flamin'wok · Smokey Joe's
 
+**Status:** ran in daily production for the group's staff from early 2026. The group has since moved on and the hosting was shut down in October 2026; the code stays here as a reference.
+
 ---
 
 ## Table of Contents
@@ -342,9 +344,7 @@ python scripts/run_notion_ingestion.py --all --clear
 
 ## Admin Dashboard
 
-Deployed on Vercel (frontend) and Railway (backend). Mobile-first with hamburger drawer navigation.
-
-**Live URL:** [yamie-chatbot2.vercel.app](https://yamie-chatbot2.vercel.app)
+Ran on Vercel (frontend) and Railway (backend) until the hosting was shut down in October 2026. Mobile-first with hamburger drawer navigation.
 
 ### Pages
 
@@ -425,25 +425,12 @@ ADMIN_JWT_SECRET=<python -c "import secrets; print(secrets.token_hex(32))">
 
 ## Production Deployment
 
-| Service | Host | URL |
-|---|---|---|
-| Chatbot Backend | Railway | `yamie-chatbot2-production.up.railway.app` |
-| Admin Backend | Railway | `yamiebot-admin-backend-production.up.railway.app` |
-| Admin Frontend | Vercel | `yamie-chatbot2.vercel.app` |
+In production the chatbot backend and the admin backend ran on Railway and the admin frontend on Vercel, with WhatsApp traffic coming in through a Twilio webhook. Every push to `main` deployed automatically. The hosting was shut down in October 2026.
 
 **Procfile:**
 ```
 web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 ```
-
-**Deploy flow:** push to `main` → Railway auto-deploys both backends → Vercel auto-deploys the frontend.
-
-**Twilio webhook URL (set in Twilio console):**
-```
-https://yamie-chatbot2-production.up.railway.app/api/webhook/whatsapp
-```
-
-> ⚠️ Twilio Sandbox expires every 72 hours. Users must rejoin by sending `join let-were` to the Twilio number. The permanent fix is Phase 8 (WhatsApp Business API).
 
 ---
 
